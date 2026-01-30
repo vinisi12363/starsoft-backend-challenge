@@ -125,7 +125,7 @@ export class KafkaConsumerService implements OnModuleInit {
 
     private async handleReservationCreated(event: ReservationCreatedEvent): Promise<void> {
         this.logger.log(
-            `📌 Reservation created: ${event.reservationId} | ` +
+            `Reservation created: ${event.reservationId} | ` +
             `User: ${event.userId} | ` +
             `Session: ${event.sessionId} | ` +
             `Seats: ${event.seatIds.length} | ` +
@@ -140,7 +140,7 @@ export class KafkaConsumerService implements OnModuleInit {
 
     private async handleReservationExpired(event: ReservationExpiredEvent): Promise<void> {
         this.logger.log(
-            `⏰ Reservation expired: ${event.reservationId} | ` +
+            `Reservation expired: ${event.reservationId} | ` +
             `User: ${event.userId} | ` +
             `Session: ${event.sessionId} | ` +
             `Seats released: ${event.seatIds.length}`,
@@ -154,7 +154,7 @@ export class KafkaConsumerService implements OnModuleInit {
 
     private async handlePaymentConfirmed(event: PaymentConfirmedEvent): Promise<void> {
         this.logger.log(
-            `💰 Payment confirmed: Sale ${event.saleId} | ` +
+            `Payment confirmed: Sale ${event.saleId} | ` +
             `Reservation: ${event.reservationId} | ` +
             `User: ${event.userId} | ` +
             `Amount: R$${event.totalAmount.toFixed(2)}`,
@@ -169,7 +169,7 @@ export class KafkaConsumerService implements OnModuleInit {
 
     private async handleSeatReleased(event: SeatReleasedEvent): Promise<void> {
         this.logger.log(
-            `🔓 Seats released: Session ${event.sessionId} | ` +
+            `Seats released: Session ${event.sessionId} | ` +
             `Seats: ${event.seatIds.length} | ` +
             `Reason: ${event.reason}`,
         );
@@ -181,7 +181,7 @@ export class KafkaConsumerService implements OnModuleInit {
 
     private async handleSeatSold(event: SeatSoldEvent): Promise<void> {
         this.logger.log(
-            `🎟️ Seats sold: Session ${event.sessionId} | ` +
+            `Seats sold: Session ${event.sessionId} | ` +
             `Seats: ${event.seatIds.length} | ` +
             `Sale: ${event.saleId}`,
         );

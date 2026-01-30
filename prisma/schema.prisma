@@ -27,25 +27,50 @@ model User {
 }
 
 // ===========================================
+// Room - Sala de cinema (permanente)
+// ===========================================
+enum RoomStatus {
+  ACTIVE
+  MAINTENANCE
+  INACTIVE
+}
+
+model Room {
+  id        String     @id @default(uuid())
+  name      String     @unique
+  capacity  Int
+  status    RoomStatus @default(ACTIVE)
+  createdAt DateTime   @default(now()) @map("created_at")
+  updatedAt DateTime   @updatedAt @map("updated_at")
+
+  seats    Seat[]
+  sessions Session[]
+
+  @@map("rooms")
+}
+
+// ===========================================
 // Session - Sessão de cinema (filme, horário, sala)
 // ===========================================
 model Session {
-  id          String   @id @default(uuid())
-  movieTitle  String   @map("movie_title")
-  showTime    DateTime @map("show_time")
-  roomName    String   @map("room_name")
-  ticketPrice Float    @map("ticket_price")
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  id            String   @id @default(uuid())
+  roomId        String   @map("room_id")
+  movieTitle    String   @map("movie_title")
+  startShowTime DateTime @map("start_show_time")
+  endShowTime   DateTime @map("end_show_time")
+  ticketPrice   Decimal  @map("ticket_price") @db.Decimal(10, 2)
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
 
-  seats        Seat[]
+  room         Room          @relation(fields: [roomId], references: [id])
   reservations Reservation[]
 
+  @@index([roomId, startShowTime, endShowTime])
   @@map("sessions")
 }
 
 // ===========================================
-// Seat - Assento individual de uma sessão
+// Seat - Assento individual de uma sala
 // ===========================================
 enum SeatStatus {
   AVAILABLE
@@ -55,17 +80,17 @@ enum SeatStatus {
 
 model Seat {
   id         String     @id @default(uuid())
-  sessionId  String     @map("session_id")
+  roomId     String     @map("room_id")
   rowLabel   String     @map("row_label")
   seatNumber Int        @map("seat_number")
   status     SeatStatus @default(AVAILABLE)
   createdAt  DateTime   @default(now()) @map("created_at")
   updatedAt  DateTime   @updatedAt @map("updated_at")
 
-  session          Session           @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  room             Room              @relation(fields: [roomId], references: [id], onDelete: Cascade)
   reservationSeats ReservationSeat[]
 
-  @@unique([sessionId, rowLabel, seatNumber])
+  @@unique([roomId, rowLabel, seatNumber])
   @@map("seats")
 }
 
@@ -120,7 +145,7 @@ model Sale {
   id            String   @id @default(uuid())
   reservationId String   @unique @map("reservation_id")
   userId        String   @map("user_id")
-  totalAmount   Float    @map("total_amount")
+  totalAmount   Decimal  @map("total_amount") @db.Decimal(10, 2)
   confirmedAt   DateTime @default(now()) @map("confirmed_at")
   createdAt     DateTime @default(now()) @map("created_at")
 
