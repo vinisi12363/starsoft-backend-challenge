@@ -12,6 +12,7 @@
     "start:dev": "nest start --watch",
     "start:debug": "nest start --debug --watch",
     "start:prod": "node dist/main",
+    "seed": "prisma db seed",
     "lint": "biome lint src test",
     "lint:fix": "biome lint --write src test",
     "check": "biome check src test",
@@ -88,5 +89,8 @@
     "moduleNameMapper": {
       "^uuid$": "uuid"
     }
+  },
+  "prisma": {
+    "seed": "ts-node prisma/seed.ts"
   }
 }
