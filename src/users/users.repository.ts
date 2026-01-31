@@ -34,23 +34,27 @@ export class UsersRepository {
 
    
     async findPurchaseHistory(userId: string) {
-        return this.prisma.sale.findMany({
-            where: { userId },
-            include: {
-                reservation: {
-                    include: {
-                        session: true,
-                        reservationSeats: {
-                            include: {
-                                seat: true,
+    return this.prisma.sale.findMany({
+        where: { userId },
+        include: {
+            reservation: {
+                include: {
+                    session: true,
+                    reservationSeats: {
+                        include: {
+                            sessionSeat: { // Camada intermediária da sessão
+                                include: {
+                                    seat: true, // Agora sim, chegamos no assento físico!
+                                },
                             },
                         },
                     },
                 },
             },
-            orderBy: { confirmedAt: 'desc' },
-        });
-    }
+        },
+        orderBy: { confirmedAt: 'desc' },
+    });
+}
 
     
     async update(id: string, data: Prisma.UserUpdateInput): Promise<User> {

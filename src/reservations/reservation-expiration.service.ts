@@ -11,92 +11,55 @@ import {
     SeatReleasedEvent,
 } from '../kafka/kafka.events';
 import { ReservationsRepository } from './reservations.repository';
-
 @Injectable()
 export class ReservationExpirationService {
     private readonly logger = new Logger(ReservationExpirationService.name);
 
     constructor(
         private readonly prisma: PrismaService,
-        private readonly reservationsRepository: ReservationsRepository,
+        private readonly repository: ReservationsRepository,
         private readonly kafka: KafkaService,
     ) { }
 
-    /**
-     * Cron job que roda a cada 5 segundos para verificar e expirar reservas
-     */
     @Cron(CronExpression.EVERY_5_SECONDS)
     async handleExpiredReservations() {
         const now = new Date();
+        const expiredReservations = await this.repository.findExpired(now);
 
-        const expiredReservations = await this.reservationsRepository.findExpired(now);
+        if (expiredReservations.length === 0) return;
 
-        if (expiredReservations.length === 0) {
-            return;
-        }
-
-        this.logger.log(
-            `Found ${expiredReservations.length} expired reservations to process`,
-        );
+        this.logger.log(`Processando ${expiredReservations.length} reservas expiradas...`);
 
         for (const reservation of expiredReservations) {
             try {
-                const seatIds = reservation.reservationSeats.map((rs) => rs.seat.id);
+                // No novo schema, usamos o sessionSeatId
+                const sessionSeatIds = reservation.reservationSeats.map((rs) => rs.sessionSeatId);
 
-                // Atualizar em transação
                 await this.prisma.$transaction(async (tx) => {
-                    // Liberar assentos
-                    await tx.seat.updateMany({
-                        where: { id: { in: seatIds } },
+                    // 1. Libera os assentos da SESSÃO específica
+                    await tx.sessionSeat.updateMany({
+                        where: { id: { in: sessionSeatIds } },
                         data: { status: SeatStatus.AVAILABLE },
                     });
 
-                    // Marcar reserva como expirada
+                    // 2. Marca a reserva como EXPIRED
                     await tx.reservation.update({
                         where: { id: reservation.id },
                         data: { status: ReservationStatus.EXPIRED },
                     });
                 });
 
-                // Publicar evento de reserva expirada
-                const expiredEvent: ReservationExpiredEvent = {
+                // 3. Evento Kafka de Expiração
+                await this.kafka.emit(KAFKA_TOPICS.RESERVATIONS, {
                     eventType: RESERVATION_EVENTS.EXPIRED,
                     reservationId: reservation.id,
-                    userId: reservation.userId,
                     sessionId: reservation.sessionId,
-                    seatIds,
-                    expiredAt: now,
-                };
+                    sessionSeatIds,
+                }, reservation.id);
 
-                await this.kafka.emit(
-                    KAFKA_TOPICS.RESERVATIONS,
-                    expiredEvent,
-                    reservation.id,
-                );
-
-                // Publicar evento de assentos liberados
-                const seatReleasedEvent: SeatReleasedEvent = {
-                    eventType: SEAT_EVENTS.RELEASED,
-                    sessionId: reservation.sessionId,
-                    seatIds,
-                    reason: 'expired',
-                    releasedAt: now,
-                };
-
-                await this.kafka.emit(
-                    KAFKA_TOPICS.SEATS,
-                    seatReleasedEvent,
-                    reservation.sessionId,
-                );
-
-                this.logger.log(
-                    `Reservation ${reservation.id} expired. Released seats: ${seatIds.join(', ')}`,
-                );
+                this.logger.log(`Reserva ${reservation.id} expirada com sucesso.`);
             } catch (error) {
-                this.logger.error(
-                    `Error expiring reservation ${reservation.id}:`,
-                    error,
-                );
+                this.logger.error(`Falha ao expirar reserva ${reservation.id}: ${error.message}`);
             }
         }
     }

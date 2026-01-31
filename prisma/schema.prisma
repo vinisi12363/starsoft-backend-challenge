@@ -1,5 +1,5 @@
 // ===========================================
-// Cinema Ticket System - Prisma Schema
+// Cinema Ticket System - Prisma Schema (Distributed Version)
 // ===========================================
 
 generator client {
@@ -27,7 +27,7 @@ model User {
 }
 
 // ===========================================
-// Room - Sala de cinema (permanente)
+// Room - Estrutura física da sala
 // ===========================================
 enum RoomStatus {
   ACTIVE
@@ -50,7 +50,25 @@ model Room {
 }
 
 // ===========================================
-// Session - Sessão de cinema (filme, horário, sala)
+// Seat - Coordenada física do assento na sala
+// ===========================================
+model Seat {
+  id         String   @id @default(uuid())
+  roomId     String   @map("room_id")
+  rowLabel   String   @map("row_label")
+  seatNumber Int      @map("seat_number")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  room         Room          @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  sessionSeats SessionSeat[]
+
+  @@unique([roomId, rowLabel, seatNumber])
+  @@map("seats")
+}
+
+// ===========================================
+// Session - O evento (Filme + Sala + Horário)
 // ===========================================
 model Session {
   id            String   @id @default(uuid())
@@ -63,6 +81,7 @@ model Session {
   updatedAt     DateTime @updatedAt @map("updated_at")
 
   room         Room          @relation(fields: [roomId], references: [id])
+  sessionSeats SessionSeat[]
   reservations Reservation[]
 
   @@index([roomId, startShowTime, endShowTime])
@@ -70,7 +89,7 @@ model Session {
 }
 
 // ===========================================
-// Seat - Assento individual de uma sala
+// SessionSeat - O estado do assento PARA UMA SESSÃO
 // ===========================================
 enum SeatStatus {
   AVAILABLE
@@ -78,24 +97,27 @@ enum SeatStatus {
   SOLD
 }
 
-model Seat {
-  id         String     @id @default(uuid())
-  roomId     String     @map("room_id")
-  rowLabel   String     @map("row_label")
-  seatNumber Int        @map("seat_number")
-  status     SeatStatus @default(AVAILABLE)
-  createdAt  DateTime   @default(now()) @map("created_at")
-  updatedAt  DateTime   @updatedAt @map("updated_at")
+model SessionSeat {
+  id        String     @id @default(uuid())
+  sessionId String     @map("session_id")
+  seatId    String     @map("seat_id")
+  status    SeatStatus @default(AVAILABLE)
+  
+  // O version é essencial para Optimistic Locking em alta concorrência
+  version   Int        @default(0)
 
-  room             Room              @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  session   Session    @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  seat      Seat       @relation(fields: [seatId], references: [id])
+  
+  // Uma reserva pode conter múltiplos SessionSeats
   reservationSeats ReservationSeat[]
 
-  @@unique([roomId, rowLabel, seatNumber])
-  @@map("seats")
+  @@unique([sessionId, seatId]) // Garante que um assento não seja duplicado na mesma sessão
+  @@map("session_seats")
 }
 
 // ===========================================
-// Reservation - Reserva temporária (30 segundos)
+// Reservation - Reserva temporária
 // ===========================================
 enum ReservationStatus {
   PENDING
@@ -123,23 +145,20 @@ model Reservation {
   @@map("reservations")
 }
 
-// ===========================================
-// ReservationSeat - Relação N:N entre Reservation e Seat
-// ===========================================
 model ReservationSeat {
   id            String @id @default(uuid())
   reservationId String @map("reservation_id")
-  seatId        String @map("seat_id")
+  sessionSeatId String @map("session_seat_id")
 
   reservation Reservation @relation(fields: [reservationId], references: [id], onDelete: Cascade)
-  seat        Seat        @relation(fields: [seatId], references: [id])
+  sessionSeat SessionSeat @relation(fields: [sessionSeatId], references: [id])
 
-  @@unique([reservationId, seatId])
+  @@unique([reservationId, sessionSeatId])
   @@map("reservation_seats")
 }
 
 // ===========================================
-// Sale - Venda confirmada (após pagamento)
+// Sale - Venda confirmada
 // ===========================================
 model Sale {
   id            String   @id @default(uuid())

@@ -4,46 +4,44 @@ import {
     IsDateString,
     IsNumber,
     IsPositive,
-    Min,
-    IsInt,
+    IsUUID,
 } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 
 export class CreateSessionDto {
-    @ApiProperty({ example: 'Inception', description: 'Movie title' })
+    @ApiProperty({ example: 'Interestelar 2', description: 'Título do filme' })
     @IsString()
     @IsNotEmpty()
     movieTitle: string;
 
     @ApiProperty({
-        example: '2024-12-25T19:00:00Z',
-        description: 'Show time (ISO date)',
+        example: '2026-02-01T19:00:00Z',
+        description: 'Horário de início (ISO)',
     })
     @IsDateString()
     @IsNotEmpty()
-    showTime: string;
+    startShowTime: string;
 
-    @ApiProperty({ example: 'Sala 1', description: 'Room name' })
-    @IsString()
+    @ApiProperty({
+        example: '2026-02-01T22:00:00Z',
+        description: 'Horário de término (ISO)',
+    })
+    @IsDateString()
     @IsNotEmpty()
-    roomName: string;
+    endShowTime: string;
 
-    @ApiProperty({ example: 25.0, description: 'Ticket price in BRL' })
+    @ApiProperty({ 
+        example: '550e8400-e29b-41d4-a716-446655440000', 
+        description: 'UUID da Sala física' 
+    })
+    @IsUUID()
+    @IsNotEmpty()
+    roomId: string; // Referência direta para a sala já criada
+
+    @ApiProperty({ example: 35.50, description: 'Preço do ingresso' })
     @Type(() => Number)
     @IsNumber({ maxDecimalPlaces: 2 })
     @IsPositive()
     ticketPrice: number;
-
-    @ApiProperty({ example: 4, description: 'Number of seat rows (A, B, C, ...)' })
-    @Type(() => Number)
-    @IsInt()
-    @Min(1)
-    rows: number;
-
-    @ApiProperty({ example: 4, description: 'Number of seats per row' })
-    @Type(() => Number)
-    @IsInt()
-    @Min(4) // Mínimo 16 assentos (4x4) conforme requisito
-    seatsPerRow: number;
 }

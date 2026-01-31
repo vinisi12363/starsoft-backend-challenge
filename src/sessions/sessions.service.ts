@@ -1,82 +1,82 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { CreateSessionDto } from './dto/create-session.dto';
-import { Session, Seat, SeatStatus, Prisma } from '@prisma/client';
+import { SeatStatus, Prisma } from '@prisma/client';
 import { SessionsRepository } from './sessions.repository';
+import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class SessionsService {
-    constructor(private readonly sessionsRepository: SessionsRepository) { }
+    constructor(
+        private readonly prisma: PrismaService, // Usado para a transação de criação
+        private readonly sessionsRepository: SessionsRepository
+    ) { }
 
-    async create(createSessionDto: CreateSessionDto): Promise<Session & { seats: Seat[] }> {
-        const { rows, seatsPerRow, ...sessionData } = createSessionDto;
+    async create(dto: CreateSessionDto) {
+        // 1. Verificar se a sala existe e pegar os assentos físicos dela
+        const room = await this.prisma.room.findUnique({
+            where: { id: dto.roomId },
+            include: { seats: true }
+        });
 
-        const totalSeats = rows * seatsPerRow;
-        if (totalSeats < 16) {
-            throw new BadRequestException(
-                `A session must have at least 16 seats. Current: ${rows} rows × ${seatsPerRow} seats = ${totalSeats}`,
-            );
+        if (!room) throw new NotFoundException('Sala não encontrada.');
+
+        // 2. Regra de Negócio: Mínimo 16 assentos
+        if (room.seats.length < 16) {
+            throw new BadRequestException(`A sala precisa ter no mínimo 16 assentos cadastrados. Atual: ${room.seats.length}`);
         }
 
-        const seatsData: Array<{ rowLabel: string; seatNumber: number; status: SeatStatus }> = [];
+        // 3. Transação Atômica: Cria a sessão e popula os SessionSeats
+        return this.prisma.$transaction(async (tx) => {
+            const session = await tx.session.create({
+                data: {
+                    movieTitle: dto.movieTitle,
+                    startShowTime: new Date(dto.startShowTime),
+                    endShowTime: new Date(dto.endShowTime),
+                    ticketPrice: new Prisma.Decimal(dto.ticketPrice),
+                    roomId: dto.roomId,
+                }
+            });
 
-        for (let row = 0; row < rows; row++) {
-            const rowLabel = String.fromCharCode(65 + row);
-            for (let seat = 1; seat <= seatsPerRow; seat++) {
-                seatsData.push({
-                    rowLabel,
-                    seatNumber: seat,
+            // Criar o estado de cada assento para ESTA sessão
+            await tx.sessionSeat.createMany({
+                data: room.seats.map(seat => ({
+                    sessionId: session.id,
+                    seatId: seat.id,
                     status: SeatStatus.AVAILABLE,
-                });
-            }
-        }
+                    version: 0 // Início do Optimistic Locking
+                }))
+            });
 
-        return this.sessionsRepository.createWithSeats(
-            {
-                movieTitle: sessionData.movieTitle,
-                showTime: new Date(sessionData.showTime),
-                roomName: sessionData.roomName,
-                ticketPrice: new Prisma.Decimal(sessionData.ticketPrice),
-            },
-            seatsData,
-        );
+            return session;
+        });
     }
 
-    async findAll(): Promise<Session[]> {
-        return this.sessionsRepository.findAll();
-    }
+    async getSessionMap(sessionId: string) {
+        const session = await this.sessionsRepository.findById(sessionId);
+        if (!session) throw new NotFoundException('Sessão não encontrada.');
 
-    async findById(id: string): Promise<Session> {
-        const session = await this.sessionsRepository.findById(id);
+        const seats = await this.sessionsRepository.findSessionSeats(sessionId);
 
-        if (!session) {
-            throw new NotFoundException(`Session with ID ${id} not found`);
-        }
-
-        return session;
-    }
-
-    async getSeats(sessionId: string, status?: SeatStatus) {
-        await this.findById(sessionId);
-
-        const seats = await this.sessionsRepository.findSeats(sessionId, status);
-
-        const available = seats.filter((s) => s.status === SeatStatus.AVAILABLE).length;
-        const reserved = seats.filter((s) => s.status === SeatStatus.RESERVED).length;
-        const sold = seats.filter((s) => s.status === SeatStatus.SOLD).length;
-
-        return {
-            sessionId,
-            seats,
-            statistics: {
-                total: seats.length,
-                available,
-                reserved,
-                sold,
-            },
+        // Estatísticas em tempo real
+        const stats = {
+            total: seats.length,
+            available: seats.filter(s => s.status === SeatStatus.AVAILABLE).length,
+            reserved: seats.filter(s => s.status === SeatStatus.RESERVED).length,
+            sold: seats.filter(s => s.status === SeatStatus.SOLD).length,
         };
+
+        return { session, seats, stats };
     }
 
-    async getAvailableSeats(sessionId: string) {
-        return this.getSeats(sessionId, SeatStatus.AVAILABLE);
-    }
+        async findAll() {
+            return this.sessionsRepository.findAll();
+        }
+
+        async findById(id: string) {
+            const session = await this.sessionsRepository.findById(id);
+            if (!session) {
+                throw new NotFoundException(`Sessão com ID ${id} não encontrada.`);
+            }
+            return session;
+        }
 }

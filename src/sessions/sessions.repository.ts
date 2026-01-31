@@ -1,112 +1,65 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { Session, Seat, Prisma, SeatStatus } from '@prisma/client';
+import { Session, Prisma, SeatStatus } from '@prisma/client';
 
-export type SessionWithSeats = Session & { seats: Seat[] };
-
-/**
- * Sessions Repository
- * 
- * Responsável por todas as operações de banco de dados relacionadas a sessões e assentos.
- */
 @Injectable()
 export class SessionsRepository {
     constructor(private readonly prisma: PrismaService) { }
 
-    async createWithSeats(
-        sessionData: Prisma.SessionCreateInput,
-        seats: Array<{ rowLabel: string; seatNumber: number; status: SeatStatus }>,
-    ): Promise<SessionWithSeats> {
-        return this.prisma.session.create({
-            data: {
-                ...sessionData,
-                seats: {
-                    createMany: {
-                        data: seats,
-                    },
-                },
-            },
-            include: {
-                seats: {
-                    orderBy: [{ rowLabel: 'asc' }, { seatNumber: 'asc' }],
-                },
-            },
-        });
-    }
-
-    /**
-     * Busca todas as sessões
-     */
-    async findAll(orderBy?: Prisma.SessionOrderByWithRelationInput): Promise<Session[]> {
+    async findAll() {
         return this.prisma.session.findMany({
-            orderBy: orderBy ?? { showTime: 'asc' },
+            include: { room: true },
+            orderBy: { startShowTime: 'asc' },
         });
     }
 
-    /**
-     * Busca sessão por ID
-     */
-    async findById(id: string): Promise<Session | null> {
-        return this.prisma.session.findUnique({
-            where: { id },
+    async findById(id: string) {
+    return this.prisma.user.findUnique({
+        where: { id },
+        include: {
+            reservations: {
+                include: {
+                    reservationSeats: {
+                        include: {
+                            sessionSeat: {
+                                include: { seat: true } // O caminho correto agora é esse!
+                            }
+                        }
+                    },
+                    session: true
+                }
+            }
+        }
+    });
+}
+
+   
+    private readonly deepInclude: Prisma.SessionInclude = {
+    sessionSeats: {
+        include: { seat: true },
+        orderBy: {
+            seat: {
+                rowLabel: 'asc' as const // O 'as const' resolve o erro TS2322
+            }
+        }
+    },
+    room: true
+};
+
+    async create(data: Prisma.SessionCreateInput) {
+        return this.prisma.session.create({
+            data,
+            include: { room: true }
         });
     }
 
-    /**
-     * Busca sessão por ID com assentos
-     */
-    async findByIdWithSeats(id: string): Promise<SessionWithSeats | null> {
-        return this.prisma.session.findUnique({
-            where: { id },
-            include: {
-                seats: {
-                    orderBy: [{ rowLabel: 'asc' }, { seatNumber: 'asc' }],
-                },
-            },
-        });
-    }
-
-    /**
-     * Busca assentos de uma sessão
-     */
-    async findSeats(sessionId: string, status?: SeatStatus) {
-        return this.prisma.seat.findMany({
+    async findSessionSeats(sessionId: string, status?: SeatStatus) {
+        return this.prisma.sessionSeat.findMany({
             where: {
                 sessionId,
                 ...(status && { status }),
             },
-            orderBy: [{ rowLabel: 'asc' }, { seatNumber: 'asc' }],
-        });
-    }
-
-    /**
-     * Conta assentos disponíveis de uma sessão
-     */
-    async countAvailableSeats(sessionId: string): Promise<number> {
-        return this.prisma.seat.count({
-            where: {
-                sessionId,
-                status: SeatStatus.AVAILABLE,
-            },
-        });
-    }
-
-    /**
-     * Atualiza uma sessão
-     */
-    async update(id: string, data: Prisma.SessionUpdateInput): Promise<Session> {
-        return this.prisma.session.update({
-            where: { id },
-            data,
-        });
-    }
-
-    /**
-     * Deleta uma sessão (cascade deleta assentos)
-     */
-    async delete(id: string): Promise<Session> {
-        return this.prisma.session.delete({
-            where: { id },
+            include: { seat: true },
         });
     }
 }

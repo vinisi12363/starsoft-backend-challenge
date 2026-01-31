@@ -10,7 +10,7 @@ import { ApiProperty } from '@nestjs/swagger';
 export class CreateReservationDto {
     @ApiProperty({
         example: '550e8400-e29b-41d4-a716-446655440000',
-        description: 'User ID',
+        description: 'ID do usuário que está realizando a reserva',
     })
     @IsUUID()
     @IsNotEmpty()
@@ -18,19 +18,19 @@ export class CreateReservationDto {
 
     @ApiProperty({
         example: '550e8400-e29b-41d4-a716-446655440001',
-        description: 'Session ID',
+        description: 'ID da sessão de cinema',
     })
     @IsUUID()
     @IsNotEmpty()
     sessionId: string;
 
     @ApiProperty({
-        example: ['550e8400-e29b-41d4-a716-446655440002'],
-        description: 'Array of seat IDs to reserve',
+        example: ['721e8400-e29b-41d4-a716-446655440099'],
+        description: 'Array de IDs dos SessionSeats (a instância do assento na sessão)',
         type: [String],
     })
     @IsArray()
     @ArrayMinSize(1)
     @IsUUID('4', { each: true })
-    seatIds: string[];
+    sessionSeatIds: string[];
 }

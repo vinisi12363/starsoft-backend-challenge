@@ -124,9 +124,9 @@ export class KafkaService implements OnModuleInit, OnModuleDestroy {
         await consumer.run({
             eachMessage: async (payload) => {
                 const { message } = payload;
-
+                let value =null
                 try {
-                    const value = message.value
+                     value = message.value
                         ? (JSON.parse(message.value.toString()) as T)
                         : null;
 
@@ -136,7 +136,10 @@ export class KafkaService implements OnModuleInit, OnModuleDestroy {
                     }
                 } catch (error) {
                     this.logger.error(`Error processing message from ${topic}`, error);
-                    // TODO: Implementar DLQ (Dead Letter Queue)
+                    await this.emit(`${topic}-dlq`, { 
+                        originalMessage: value, 
+                        error: error.message 
+                    }, message.key?.toString());
                 }
             },
         });

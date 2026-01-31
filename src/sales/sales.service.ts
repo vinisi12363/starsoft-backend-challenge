@@ -2,8 +2,9 @@ import { Injectable, NotFoundException, BadRequestException, Logger } from '@nes
 import { PrismaService } from '../prisma/prisma.service';
 import { KafkaService } from '../kafka/kafka.service';
 import { ReservationStatus, SeatStatus, Sale, Prisma } from '@prisma/client';
-import { KAFKA_TOPICS, SALE_EVENTS, SEAT_EVENTS, PaymentConfirmedEvent, SeatSoldEvent } from '../kafka/kafka.events';
+import { KAFKA_TOPICS, SALE_EVENTS, SEAT_EVENTS } from '../kafka/kafka.events';
 import { SalesRepository } from './sales.repository';
+import { ReservationsRepository } from '../reservations/reservations.repository';
 
 @Injectable()
 export class SalesService {
@@ -12,110 +13,89 @@ export class SalesService {
     constructor(
         private readonly prisma: PrismaService,
         private readonly salesRepository: SalesRepository,
+        private readonly reservationsRepository: ReservationsRepository,
         private readonly kafka: KafkaService,
     ) { }
 
     async confirmPayment(reservationId: string): Promise<Sale> {
-        const reservation = await this.prisma.reservation.findUnique({
-            where: { id: reservationId },
-            include: {
-                reservationSeats: {
-                    include: { seat: true },
-                },
-                session: true,
-            },
-        });
+        // 1. Busca a reserva usando o Repository (Mantendo o padrão)
+        const reservation = await this.reservationsRepository.findById(reservationId);
 
         if (!reservation) {
-            throw new NotFoundException(`Reservation with ID ${reservationId} not found`);
+            throw new NotFoundException(`Reserva ${reservationId} não encontrada.`);
         }
 
+        // 2. Regras de Negócio (Guard Clauses)
         if (reservation.status !== ReservationStatus.PENDING) {
-            throw new BadRequestException(`Cannot confirm payment. Reservation status is: ${reservation.status}`);
+            throw new BadRequestException(`Pagamento não pode ser confirmado. Status: ${reservation.status}`);
         }
 
         if (new Date() > reservation.expiresAt) {
-            throw new BadRequestException('Reservation has expired. Please create a new reservation.');
+            throw new BadRequestException('A reserva expirou. O assento foi liberado para outros usuários.');
         }
 
+        // 3. Cálculos
         const seatCount = reservation.reservationSeats.length;
-        const ticketPrice = reservation.session.ticketPrice;
-        const totalAmount = new Prisma.Decimal(ticketPrice.toString()).mul(seatCount);
+        const ticketPrice = new Prisma.Decimal(reservation.session.ticketPrice.toString());
+        const totalAmount = ticketPrice.mul(seatCount);
+        
+        const sessionSeatIds = reservation.reservationSeats.map((rs) => rs.sessionSeatId);
 
-        const seatIds = reservation.reservationSeats.map((rs) => rs.seat.id);
-
+        // 4. Transação Atômica (O coração da venda)
         const sale = await this.prisma.$transaction(async (tx) => {
-            await tx.seat.updateMany({
-                where: { id: { in: seatIds } },
+            // A. Atualiza SessionSeats para SOLD (usando tx para garantir atomicidade)
+            await tx.sessionSeat.updateMany({
+                where: { id: { in: sessionSeatIds } },
                 data: { status: SeatStatus.SOLD },
             });
 
+            // B. Confirma a Reserva
             await tx.reservation.update({
                 where: { id: reservationId },
                 data: { status: ReservationStatus.CONFIRMED },
             });
 
-            return tx.sale.create({
-                data: {
-                    reservationId,
-                    userId: reservation.userId,
-                    totalAmount,
-                },
-                include: {
-                    reservation: {
-                        include: {
-                            reservationSeats: {
-                                include: { seat: true },
-                            },
-                            session: true,
-                        },
-                    },
-                    user: true,
-                },
+            // C. Cria a Venda usando o Repository (passando o contexto da transação)
+            return this.salesRepository.create({
+                reservationId,
+                userId: reservation.userId,
+                totalAmount,
             });
         });
 
-        const paymentEvent: PaymentConfirmedEvent = {
+        // 5. Mensageria (Kafka) - Notifica o mundo que a venda foi feita
+        await this.emitSaleEvents(sale, sessionSeatIds, reservation.sessionId);
+
+        this.logger.log(`Venda finalizada: ${sale.id} | Total: R$ ${totalAmount} | Assentos: ${seatCount}`);
+
+        return sale;
+    }
+
+    private async emitSaleEvents(sale: any, sessionSeatIds: string[], sessionId: string) {
+        // Evento de Pagamento
+        await this.kafka.emit(KAFKA_TOPICS.SALES, {
             eventType: SALE_EVENTS.PAYMENT_CONFIRMED,
             saleId: sale.id,
-            reservationId: sale.reservationId,
-            userId: sale.userId,
-            totalAmount: totalAmount.toNumber(),
+            totalAmount: sale.totalAmount,
             confirmedAt: sale.confirmedAt,
-        };
+        }, sale.id);
 
-        await this.kafka.emit(KAFKA_TOPICS.SALES, paymentEvent, sale.id);
-
-        const seatSoldEvent: SeatSoldEvent = {
+        // Evento de Assento Vendido
+        await this.kafka.emit(KAFKA_TOPICS.SEATS, {
             eventType: SEAT_EVENTS.SOLD,
-            sessionId: reservation.sessionId,
-            seatIds,
+            sessionId,
+            sessionSeatIds,
             saleId: sale.id,
-            soldAt: sale.confirmedAt,
-        };
-
-        await this.kafka.emit(KAFKA_TOPICS.SEATS, seatSoldEvent, reservation.sessionId);
-
-        this.logger.log(`Payment confirmed for reservation ${reservationId}. Sale ID: ${sale.id}, Total: R$ ${totalAmount}`);
-
-        return sale;
+        }, sessionId);
     }
 
-    async findAll() {
-        return this.salesRepository.findAll();
-    }
-
+    // Métodos de consulta delegando para o Repository
+    async findAll() { return this.salesRepository.findAll(); }
+    async findByUserId(userId: string) { return this.salesRepository.findByUserId(userId); }
+    
     async findById(id: string) {
         const sale = await this.salesRepository.findById(id);
-
-        if (!sale) {
-            throw new NotFoundException(`Sale with ID ${id} not found`);
-        }
-
+        if (!sale) throw new NotFoundException(`Venda ${id} não encontrada.`);
         return sale;
-    }
-
-    async findByUserId(userId: string) {
-        return this.salesRepository.findByUserId(userId);
     }
 }

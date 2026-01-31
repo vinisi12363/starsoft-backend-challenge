@@ -1,4 +1,3 @@
-
 import { PrismaClient, RoomStatus, SeatStatus, ReservationStatus } from '@prisma/client';
 import { v4 as uuidv4 } from 'uuid';
 import { Pool } from 'pg';
@@ -10,164 +9,129 @@ const adapter = new PrismaPg(pool);
 const prisma = new PrismaClient({ adapter });
 
 async function main() {
-    console.log('🌱 Starting seed...');
+    console.log('🌱 Starting distributed-ready seed...');
 
-    // 1. Clean up existing data (optional, but good for idempotent runs)
-    // Be careful in production!
-    await prisma.reservationSeat.deleteMany();
+    // 1. Limpeza (Ordem reversa das FKs para não dar erro)
     await prisma.sale.deleteMany();
+    await prisma.reservationSeat.deleteMany();
     await prisma.reservation.deleteMany();
+    await prisma.sessionSeat.deleteMany(); // Nova tabela
     await prisma.session.deleteMany();
     await prisma.seat.deleteMany();
     await prisma.room.deleteMany();
     await prisma.user.deleteMany();
 
-    console.log('🧹 Cleaned up database.');
+    console.log('🧹 Database clean.');
 
-    // 2. Create Rooms
-    const roomsData = [
-        { name: 'Sala 1 - Standard', capacity: 16 },
-        { name: 'Sala 2 - VIP', capacity: 16 },
-        { name: 'Sala 3 - IMAX', capacity: 16 },
-    ];
+    // 2. Criar Usuários
+    const user = await prisma.user.create({
+        data: {
+            email: 'dev@test.com',
+            name: 'Dev Teste Concorrência',
+        },
+    });
 
-    const createdRooms = [];
+    // 3. Criar Sala (O Molde Físico)
+    const room = await prisma.room.create({
+        data: {
+            name: 'Sala 01 - IMAX Extreme',
+            capacity: 20,
+            status: RoomStatus.ACTIVE,
+        },
+    });
 
-    for (const r of roomsData) {
-        const room = await prisma.room.create({
-            data: {
-                name: r.name,
-                capacity: r.capacity,
-                status: RoomStatus.ACTIVE,
-            },
-        });
-        createdRooms.push(room);
-        console.log(`Created Room: ${room.name}`);
+    // 4. Criar Assentos Físicos (As coordenadas fixas)
+    const rows = ['A', 'B'];
+    const seatsPerSide = 10;
+    const seatIds: string[] = [];
 
-        // 3. Create Seats for each Room
-        // Simple layout: 10 seats per row
-        const rows = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J'];
-        const seatsPerRow = Math.ceil(r.capacity / rows.length); // Approximate logic
-
-        let seatsCreatedCount = 0;
-        for (let i = 0; i < rows.length; i++) {
-            // limit rows if capacity is small
-            if (seatsCreatedCount >= r.capacity) break;
-
-            const row = rows[i];
-            for (let num = 1; num <= 10; num++) {
-                if (seatsCreatedCount >= r.capacity) break;
-
-                await prisma.seat.create({
-                    data: {
-                        roomId: room.id,
-                        rowLabel: row,
-                        seatNumber: num,
-                        status: SeatStatus.AVAILABLE,
-                    },
-                });
-                seatsCreatedCount++;
-            }
+    for (const row of rows) {
+        for (let num = 1; num <= seatsPerSide; num++) {
+            const seat = await prisma.seat.create({
+                data: {
+                    roomId: room.id,
+                    rowLabel: row,
+                    seatNumber: num,
+                    // Note: Não existe mais 'status' aqui!
+                },
+            });
+            seatIds.push(seat.id);
         }
-        console.log(` - Created ${seatsCreatedCount} seats for ${room.name}`);
     }
+    console.log(`✅ Room and ${seatIds.length} physical seats created.`);
 
-    // 4. Create Users
-    const user1 = await prisma.user.create({
+    // 5. Criar Sessão (O Evento)
+    const startTime = new Date('2026-02-01T19:00:00Z');
+    const session = await prisma.session.create({
         data: {
-            email: 'john.doe@example.com',
-            name: 'John Doe',
+            roomId: room.id,
+            movieTitle: 'Interstellar 2: The Return',
+            startShowTime: startTime,
+            endShowTime: new Date(startTime.getTime() + 3 * 60 * 60 * 1000),
+            ticketPrice: 35.00,
         },
     });
 
-    const user2 = await prisma.user.create({
-        data: {
-            email: 'jane.smith@example.com',
-            name: 'Jane Smith',
+    // 6. INSTANCIAR SessionSeats (O Pulo do Gato 🐈)
+    // Para cada assento físico da sala, criamos um estado "AVAILABLE" nesta sessão.
+    await prisma.sessionSeat.createMany({
+        data: seatIds.map((id) => ({
+            sessionId: session.id,
+            seatId: id,
+            status: SeatStatus.AVAILABLE,
+            version: 0, // Inicia o controle de concorrência
+        })),
+    });
+    console.log(`✅ Session instantiated with its own seat states.`);
+
+    // 7. Simular uma Reserva e Venda (Fluxo Novo)
+    // Vamos pegar o assento A1 desta sessão específica
+    const targetSessionSeat = await prisma.sessionSeat.findFirst({
+        where: { 
+            sessionId: session.id,
+            seat: { rowLabel: 'A', seatNumber: 1 }
         },
+        include: { seat: true }
     });
 
-    console.log('Did created users:', user1.email, user2.email);
-
-    // 5. Create Sessions (Movies)
-    // Current year is 2026. Let's schedule some for "tomorrow" and "next week".
-    const now = new Date(); // 2026...
-    const tomorrow = new Date(now);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    tomorrow.setHours(19, 0, 0, 0); // 19:00
-
-    const nextWeek = new Date(now);
-    nextWeek.setDate(nextWeek.getDate() + 7);
-    nextWeek.setHours(21, 0, 0, 0); // 21:00
-
-    const session1 = await prisma.session.create({
-        data: {
-            roomId: createdRooms[0].id, // Sala 1
-            movieTitle: 'O Senhor dos Anéis: A Sociedade do Anel (4K Remaster)',
-            startShowTime: tomorrow,
-            endShowTime: new Date(tomorrow.getTime() + 3 * 60 * 60 * 1000), // +3h
-            ticketPrice: 25.50,
-        },
-    });
-
-    const session2 = await prisma.session.create({
-        data: {
-            roomId: createdRooms[2].id, // IMAX
-            movieTitle: 'Interestelar (IMAX Exclusive)',
-            startShowTime: nextWeek,
-            endShowTime: new Date(nextWeek.getTime() + 2 * 60 * 60 * 1000 + 49 * 60 * 1000), // +2h 49m
-            ticketPrice: 45.00,
-        },
-    });
-
-    console.log('Created Sessions:', session1.movieTitle, session2.movieTitle);
-
-    // 6. Create a Sale (Simulated)
-    // User 1 buys a ticket for Session 1
-
-    // Find a seat
-    const seatToBook = await prisma.seat.findFirst({
-        where: { roomId: session1.roomId, rowLabel: 'D', seatNumber: 5 }
-    });
-
-    if (seatToBook) {
-        // Create Reservation first
+    if (targetSessionSeat) {
         const reservation = await prisma.reservation.create({
             data: {
-                userId: user1.id,
-                sessionId: session1.id,
+                userId: user.id,
+                sessionId: session.id,
                 status: ReservationStatus.CONFIRMED,
-                expiresAt: new Date(new Date().getTime() + 1000 * 60 * 10), // expired in 10m (doesn't matter if confirmed)
+                expiresAt: new Date(Date.now() + 1000 * 60 * 30),
                 idempotencyKey: uuidv4(),
                 reservationSeats: {
                     create: {
-                        seatId: seatToBook.id
+                        sessionSeatId: targetSessionSeat.id // Aponta para a SessionSeat!
                     }
                 }
             }
         });
 
-        // Create Sale
+        // Marcar o assento da sessão como vendido
+        await prisma.sessionSeat.update({
+            where: { id: targetSessionSeat.id },
+            data: { 
+                status: SeatStatus.SOLD,
+                version: { increment: 1 } // Simula o update de concorrência
+            }
+        });
+
         await prisma.sale.create({
             data: {
-                id: uuidv4(),
                 reservationId: reservation.id,
-                userId: user1.id,
-                totalAmount: session1.ticketPrice,
+                userId: user.id,
+                totalAmount: 35.00,
                 confirmedAt: new Date(),
             }
         });
 
-        // Update seat status
-        await prisma.seat.update({
-            where: { id: seatToBook.id },
-            data: { status: SeatStatus.SOLD }
-        });
-
-        console.log(`Created simulated sale for ${user1.name} watching ${session1.movieTitle}`);
+        console.log(`🚀 Success: Seat ${targetSessionSeat.seat.rowLabel}${targetSessionSeat.seat.seatNumber} sold for ${session.movieTitle}`);
     }
 
-    console.log('✅ Seed completed successfully!');
+    console.log('✨ Seed finished successfully!');
 }
 
 main()

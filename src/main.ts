@@ -99,8 +99,8 @@ API RESTful para gestão de sessões de cinema, reservas de assentos e vendas de
   const port = process.env.PORT ?? 3000;
   await app.listen(port);
 
-  console.log(`🎬 Cinema Ticket API running on: http://localhost:${port}`);
-  console.log(`📄 Swagger docs available at: http://localhost:${port}/api-docs`);
+  console.log(`API running on: http://localhost:${port}`);
+  console.log(`Swagger docs available at: http://localhost:${port}/api-docs`);
 }
 
 bootstrap();

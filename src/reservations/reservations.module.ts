@@ -10,6 +10,7 @@ import { KafkaModule } from '../kafka/kafka.module';
 @Module({
     imports: [PrismaModule, RedisModule, KafkaModule],
     controllers: [ReservationsController],
+    exports:[ReservationsRepository],
     providers: [ReservationsService, ReservationsRepository, ReservationExpirationService],
 })
 export class ReservationsModule { }

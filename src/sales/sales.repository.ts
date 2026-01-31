@@ -1,75 +1,60 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { Sale, Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 
 @Injectable()
 export class SalesRepository {
     constructor(private readonly prisma: PrismaService) { }
 
+    // Centralizamos o include para não repetir esse "Inception" em todos os métodos
+    private readonly saleInclude = {
+        reservation: {
+            include: {
+                session: true,
+                reservationSeats: {
+                    include: {
+                        sessionSeat: {
+                            include: { seat: true }, // Caminho: Reservation -> ReservationSeat -> SessionSeat -> Seat
+                        },
+                    },
+                },
+            },
+        },
+        user: true,
+    };
+
     async create(data: Prisma.SaleUncheckedCreateInput) {
         return this.prisma.sale.create({
             data,
-            include: {
-                reservation: {
-                    include: {
-                        reservationSeats: {
-                            include: { seat: true },
-                        },
-                        session: true,
-                    },
-                },
-                user: true,
-            },
+            include: this.saleInclude,
         });
     }
 
     async findAll() {
         return this.prisma.sale.findMany({
-            include: {
-                reservation: {
-                    include: {
-                        session: true,
-                        reservationSeats: {
-                            include: { seat: true },
-                        },
-                    },
-                },
-                user: true,
-            },
+            include: this.saleInclude,
             orderBy: { confirmedAt: 'desc' },
         });
     }
 
     async findById(id: string) {
-        return this.prisma.sale.findUnique({
-            where: { id },
-            include: {
-                reservation: {
-                    include: {
-                        session: true,
-                        reservationSeats: {
-                            include: { seat: true },
-                        },
-                    },
-                },
-                user: true,
+    return this.prisma.reservation.findUnique({
+        where: { id },
+        include: {
+            reservationSeats: {
+                include: {
+                    sessionSeat: { include: { seat: true } }
+                }
             },
-        });
-    }
+            session: true,
+        },
+    });
+}
 
     async findByUserId(userId: string) {
         return this.prisma.sale.findMany({
             where: { userId },
-            include: {
-                reservation: {
-                    include: {
-                        session: true,
-                        reservationSeats: {
-                            include: { seat: true },
-                        },
-                    },
-                },
-            },
+            include: this.saleInclude,
             orderBy: { confirmedAt: 'desc' },
         });
     }

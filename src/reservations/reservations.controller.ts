@@ -7,6 +7,8 @@ import {
     Param,
     Headers,
     ParseUUIDPipe,
+    HttpCode,
+    HttpStatus,
 } from '@nestjs/common';
 import {
     ApiTags,
@@ -14,61 +16,78 @@ import {
     ApiResponse,
     ApiParam,
     ApiHeader,
+    ApiExtraModels,
 } from '@nestjs/swagger';
 import { ReservationsService } from './reservations.service';
 import { CreateReservationDto } from './dto/create-reservation.dto';
 
-@ApiTags('reservations')
+@ApiTags('Reservations')
 @Controller('reservations')
 export class ReservationsController {
     constructor(private readonly reservationsService: ReservationsService) { }
 
     @Post()
+    @HttpCode(HttpStatus.CREATED)
     @ApiOperation({
-        summary: 'Create a seat reservation',
-        description:
-            'Reserves one or more seats for a session. The reservation expires in 30 seconds if not confirmed.',
+        summary: 'Criar uma reserva de assentos',
+        description: `
+            Inicia o fluxo de reserva para um ou mais assentos em uma sessão específica. 
+            Utiliza Redis para Distributed Locking e garante que o mesmo assento não seja reservado simultaneamente.
+            A reserva expira automaticamente em 30 segundos se o pagamento não for detectado.
+        `,
     })
     @ApiHeader({
-        name: 'X-Idempotency-Key',
-        description: 'Unique key to prevent duplicate reservations (optional)',
+        name: 'x-idempotency-key',
+        description: 'Chave única (UUID) para evitar processamento duplicado da mesma reserva.',
         required: false,
     })
     @ApiResponse({
         status: 201,
-        description: 'Reservation created successfully',
+        description: 'Reserva criada com sucesso. Assentos temporariamente bloqueados.',
     })
     @ApiResponse({
-        status: 409,
-        description: 'Seats are not available or lock acquisition failed',
+        status: 400,
+        description: 'Dados inválidos ou erro na solicitação.',
     })
     @ApiResponse({
         status: 404,
-        description: 'User or session not found',
+        description: 'Sessão ou Assento não encontrado.',
+    })
+    @ApiResponse({
+        status: 409,
+        description: 'Conflito: Um ou mais assentos já estão reservados ou vendidos.',
     })
     async create(
         @Body() createReservationDto: CreateReservationDto,
-        @Headers('X-Idempotency-Key') idempotencyKey?: string,
+        @Headers('x-idempotency-key') idempotencyKey?: string,
     ) {
+        // Passamos o DTO e a chave de idempotência direto para a orquestração da Service
         return this.reservationsService.create(createReservationDto, idempotencyKey);
     }
 
     @Get(':id')
-    @ApiOperation({ summary: 'Get reservation by ID' })
-    @ApiParam({ name: 'id', description: 'Reservation ID (UUID)' })
-    @ApiResponse({ status: 200, description: 'Reservation found' })
-    @ApiResponse({ status: 404, description: 'Reservation not found' })
+    @ApiOperation({ 
+        summary: 'Consultar detalhes de uma reserva',
+        description: 'Retorna os dados da reserva, incluindo os labels dos assentos (ex: A1, B2).'
+    })
+    @ApiParam({ name: 'id', description: 'ID da Reserva (UUID)' })
+    @ApiResponse({ status: 200, description: 'Reserva encontrada.' })
+    @ApiResponse({ status: 404, description: 'Reserva não encontrada.' })
     async findById(@Param('id', ParseUUIDPipe) id: string) {
         return this.reservationsService.findById(id);
     }
 
     @Delete(':id')
-    @ApiOperation({ summary: 'Cancel a reservation' })
-    @ApiParam({ name: 'id', description: 'Reservation ID (UUID)' })
-    @ApiResponse({ status: 200, description: 'Reservation cancelled' })
-    @ApiResponse({ status: 400, description: 'Cannot cancel this reservation' })
-    @ApiResponse({ status: 404, description: 'Reservation not found' })
+    @HttpCode(HttpStatus.NO_CONTENT)
+    @ApiOperation({ 
+        summary: 'Cancelar manualmente uma reserva',
+        description: 'Libera os assentos vinculados à reserva e altera o status para CANCELLED.'
+    })
+    @ApiParam({ name: 'id', description: 'ID da Reserva (UUID)' })
+    @ApiResponse({ status: 204, description: 'Reserva cancelada e assentos liberados.' })
+    @ApiResponse({ status: 400, description: 'Reserva não pode ser cancelada (já confirmada ou expirada).' })
+    @ApiResponse({ status: 404, description: 'Reserva não encontrada.' })
     async cancel(@Param('id', ParseUUIDPipe) id: string) {
-        return this.reservationsService.cancel(id);
+        await this.reservationsService.cancel(id);
     }
 }

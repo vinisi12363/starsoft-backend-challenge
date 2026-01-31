@@ -1,115 +1,68 @@
-import { Injectable, ConflictException, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { PrismaService } from '../prisma/prisma.service';
-import { RedisService } from '../redis/redis.service';
-import { KafkaService } from '../kafka/kafka.service';
-import { CreateReservationDto } from './dto/create-reservation.dto';
-import { Reservation, ReservationStatus, SeatStatus, Prisma } from '@prisma/client';
-import { KAFKA_TOPICS, RESERVATION_EVENTS, ReservationCreatedEvent } from '../kafka/kafka.events';
+import { Injectable, ConflictException, NotFoundException, Logger, BadRequestException } from '@nestjs/common';
 import { ReservationsRepository } from './reservations.repository';
-
-const LOCK_TTL_MS = 5000;
+import { PrismaService } from 'src/prisma';
+import { RedisService } from 'src/redis';
+import { KafkaService } from 'src/kafka';
+import { CreateReservationDto } from './dto';
+import { ReservationStatus, SeatStatus } from '@prisma/client';
+// ... outros imports (Kafka, Redis, DTOs)
 
 @Injectable()
 export class ReservationsService {
     private readonly logger = new Logger(ReservationsService.name);
-    private readonly reservationTtlSeconds: number;
 
     constructor(
         private readonly prisma: PrismaService,
-        private readonly reservationsRepository: ReservationsRepository,
+        private readonly repository: ReservationsRepository,
         private readonly redis: RedisService,
         private readonly kafka: KafkaService,
-        private readonly config: ConfigService,
-    ) {
-        this.reservationTtlSeconds = this.config.get<number>('RESERVATION_TTL_SECONDS', 30);
-    }
+    ) {}
 
-    async create(
-        createReservationDto: CreateReservationDto,
-        idempotencyKey?: string,
-    ): Promise<Reservation & { expiresAt: Date; seatIds: string[] }> {
-        const { userId, sessionId, seatIds } = createReservationDto;
+    async create(dto: CreateReservationDto, idempotencyKey?: string) {
+        const { userId, sessionId, sessionSeatIds } = dto;
 
+        // 1. Camada de Repositório para Idempotência
         if (idempotencyKey) {
-            const existingReservation = await this.reservationsRepository.findByIdempotencyKey(idempotencyKey);
-            if (existingReservation) {
-                this.logger.log(`Returning existing reservation for idempotency key: ${idempotencyKey}`);
-                return this.enrichReservation(existingReservation);
-            }
+            const existing = await this.repository.findByIdempotencyKey(idempotencyKey);
+            if (existing) return this.enrichReservation(existing);
         }
 
-        const sortedSeatIds = [...seatIds].sort();
-        const lockKeys = sortedSeatIds.map((id) => `lock:seat:${id}`);
-
-        const locks = await this.redis.acquireMultipleLocks(lockKeys, LOCK_TTL_MS);
-
-        if (!locks) {
-            throw new ConflictException('Unable to acquire locks for the requested seats. They may be in use by another user.');
-        }
+        // 2. Lógica de Concorrência (Redis)
+        const sortedIds = [...sessionSeatIds].sort();
+        const locks = await this.redis.acquireMultipleLocks(
+            sortedIds.map(id => `lock:ss:${id}`), 
+            10000
+        );
+        if (!locks) throw new ConflictException('Assentos bloqueados.');
 
         try {
-            const seats = await this.prisma.seat.findMany({
-                where: { id: { in: sortedSeatIds } },
-            });
-
-            if (seats.length !== sortedSeatIds.length) {
-                throw new NotFoundException('One or more seats not found');
-            }
-
-            const unavailableSeats = seats.filter((seat) => seat.status !== SeatStatus.AVAILABLE);
-            if (unavailableSeats.length > 0) {
-                const unavailableLabels = unavailableSeats.map((s) => `${s.rowLabel}${s.seatNumber}`).join(', ');
-                throw new ConflictException(`The following seats are not available: ${unavailableLabels}`);
-            }
-
-            const allSameSession = seats.every((seat) => seat.sessionId === sessionId);
-            if (!allSameSession) {
-                throw new BadRequestException('All seats must belong to the same session');
-            }
-
-            const expiresAt = new Date(Date.now() + this.reservationTtlSeconds * 1000);
-
+            // 3. Orquestração da Transação
             const reservation = await this.prisma.$transaction(async (tx) => {
-                await tx.seat.updateMany({
-                    where: { id: { in: sortedSeatIds } },
-                    data: { status: SeatStatus.RESERVED },
-                });
+                // UPDATE com Optimistic Locking (direto no tx para performance)
+                await Promise.all(sortedIds.map(id => 
+                    tx.sessionSeat.update({
+                        where: { id, status: 'AVAILABLE' }, // Só reserva se estiver disponível
+                        data: { status: 'RESERVED', version: { increment: 1 } }
+                    })
+                ));
 
                 return tx.reservation.create({
                     data: {
-                        userId,
-                        sessionId,
-                        expiresAt,
-                        status: ReservationStatus.PENDING,
-                        ...(idempotencyKey && { idempotencyKey }),
+                        userId, sessionId, idempotencyKey,
+                        status: 'PENDING',
+                        expiresAt: new Date(Date.now() + 30000),
                         reservationSeats: {
-                            create: sortedSeatIds.map((seatId) => ({ seatId })),
-                        },
+                            create: sortedIds.map(id => ({ sessionSeatId: id }))
+                        }
                     },
                     include: {
-                        reservationSeats: {
-                            include: { seat: true },
-                        },
-                        session: true,
-                        user: true,
-                    },
+                        reservationSeats: { include: { sessionSeat: { include: { seat: true } } } }
+                    }
                 });
             });
 
-            const event: ReservationCreatedEvent = {
-                eventType: RESERVATION_EVENTS.CREATED,
-                reservationId: reservation.id,
-                userId: reservation.userId,
-                sessionId: reservation.sessionId,
-                seatIds: sortedSeatIds,
-                expiresAt: reservation.expiresAt,
-                createdAt: reservation.createdAt,
-            };
-
-            await this.kafka.emit(KAFKA_TOPICS.RESERVATIONS, event, reservation.id);
-
-            this.logger.log(`Reservation created: ${reservation.id} | User: ${userId} | Seats: ${sortedSeatIds.length} | Expires in ${this.reservationTtlSeconds}s`);
+            // 4. Mensageria
+            await this.kafka.emit('reservations-topic', { event: 'CREATED', ...reservation });
 
             return this.enrichReservation(reservation);
         } finally {
@@ -117,53 +70,72 @@ export class ReservationsService {
         }
     }
 
+    private enrichReservation(res: any) {
+        return {
+            ...res,
+            //@ts-ignore
+            seatLabels: res.reservationSeats?.map(rs => 
+                `${rs.sessionSeat.seat.rowLabel}${rs.sessionSeat.seat.seatNumber}`
+            )
+        };
+    }
+
     async findById(id: string) {
-        const reservation = await this.reservationsRepository.findById(id);
+        const reservation = await this.repository.findById(id);
 
         if (!reservation) {
-            throw new NotFoundException(`Reservation with ID ${id} not found`);
+            throw new NotFoundException(`Reserva ${id} não encontrada.`);
         }
 
         return this.enrichReservation(reservation);
     }
 
-    async findByIdempotencyKey(idempotencyKey: string) {
-        return this.reservationsRepository.findByIdempotencyKey(idempotencyKey);
-    }
-
     async cancel(id: string): Promise<void> {
-        const reservation = await this.reservationsRepository.findById(id);
+        // Busca a reserva com os assentos vinculados
+        const reservation = await this.repository.findById(id);
 
         if (!reservation) {
-            throw new NotFoundException(`Reservation with ID ${id} not found`);
+            throw new NotFoundException(`Reserva ${id} não encontrada.`);
         }
 
+        // Regra de Negócio: Só cancela se ainda estiver pendente
         if (reservation.status !== ReservationStatus.PENDING) {
-            throw new BadRequestException(`Cannot cancel reservation with status: ${reservation.status}`);
+            throw new BadRequestException(
+                `Não é possível cancelar uma reserva com status: ${reservation.status}`
+            );
         }
 
-        const seatIds = reservation.reservationSeats.map((rs) => rs.seat.id);
+        const sessionSeatIds = reservation.reservationSeats.map(rs => rs.sessionSeatId);
 
-        await this.prisma.$transaction(async (tx) => {
-            await tx.seat.updateMany({
-                where: { id: { in: seatIds } },
-                data: { status: SeatStatus.AVAILABLE },
+        try {
+            await this.prisma.$transaction(async (tx) => {
+                // A. Libera os assentos na tabela SessionSeat
+                await tx.sessionSeat.updateMany({
+                    where: { id: { in: sessionSeatIds } },
+                    data: { 
+                        status: SeatStatus.AVAILABLE,
+                        // Opcional: não incrementamos version aqui pois voltamos ao estado original
+                    }
+                });
+
+                // B. Atualiza a reserva para CANCELLED
+                await tx.reservation.update({
+                    where: { id },
+                    data: { status: ReservationStatus.CANCELLED }
+                });
             });
 
-            await tx.reservation.update({
-                where: { id },
-                data: { status: ReservationStatus.CANCELLED },
+            // C. Notifica o Kafka que os assentos foram liberados
+            await this.kafka.emit('reservations-topic', {
+                eventType: 'RESERVATION_CANCELLED',
+                reservationId: id,
+                sessionSeatIds
             });
-        });
 
-        this.logger.log(`Reservation cancelled: ${id}`);
-    }
-
-    private enrichReservation(reservation: any) {
-        const seatIds = reservation.reservationSeats.map((rs: any) => rs.seat.id);
-        return {
-            ...reservation,
-            seatIds,
-        };
+            this.logger.log(`Reserva ${id} cancelada e ${sessionSeatIds.length} assentos liberados.`);
+        } catch (error) {
+            this.logger.error(`Erro ao cancelar reserva ${id}: ${error.message}`);
+            throw error;
+        }
     }
 }
