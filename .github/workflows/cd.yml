@@ -21,7 +21,7 @@ jobs:
         script: |
           # 1. Navegar até a pasta do projeto
           # Ajuste este caminho se for diferente no seu servidor
-          cd ~/starsoft-backend-challenge
+          cd /var/www/starsoft-backend-challenge
           
           # 2. Baixar as últimas atualizações do código
           git pull origin main
