@@ -1,47 +1,33 @@
 name: CD Pipeline
 
 on:
-  workflow_run:
-    workflows: ["CI Pipeline"]
-    types:
-      - completed
-    branches:
-      - main
+  push:
+    branches: [ "main" ]
 
 jobs:
   deploy:
     name: Deploy to Production
     runs-on: ubuntu-latest
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
-
+    if: github.event_name == 'push' # Only deploy on push, not PR
+    
     steps:
-      - name: Deploy via SSH
-        uses: appleboy/ssh-action@v1.0.0
-        with:
-          host: ${{ secrets.HOST_ADDRESS }}
-          username: ${{ secrets.HOST_USER }}
-          password: ${{ secrets.HOST_PASSWORD }}
-          # key: ${{ secrets.SSH_PRIVATE_KEY }} # Descomente se for usar chave SSH em vez de senha
-          script: |
-            # Parar o script se der erro
-            set -e
-            
-            echo "🚀 Iniciando Deploy..."
-            
-            # Navegar para a pasta correta
-            echo "📂 Acessando /var/www/starsoft-backend-challenge..."
-            cd /var/www/starsoft-backend-challenge || git clone https://github.com/${{ github.repository }} /var/www/starsoft-backend-challenge && cd /var/www/starsoft-backend-challenge
-            
-            # Atualizar código
-            echo "📦 Atualizando repositório..."
-            git pull origin main
-            
-            # Subir Containers (Modo Single Instance - Servidor Modesto)
-            echo "🐳 Subindo Docker (Single Instance)..."
-            # Usando -f docker-compose.yml (padrão)
-            docker compose up --build -d
-            
-            # Limpar imagens antigas para não lotar o disco
-            docker image prune -f
-            
-            echo "✅ Deploy concluído com sucesso!"
+    - name: Deploy via SSH
+      uses: appleboy/ssh-action@v1.0.3
+      with:
+        host: ${{ secrets.SSH_HOST }}
+        username: ${{ secrets.SSH_USERNAME }}
+        key: ${{ secrets.SSH_PRIVATE_KEY }}
+        port: 22
+        script: |
+          # 1. Navegar até a pasta do projeto
+          # Ajuste este caminho se for diferente no seu servidor
+          cd ~/starsoft-backend-challenge
+          
+          # 2. Baixar as últimas atualizações do código
+          git pull origin main
+          
+          # 3. Reconstruir e Reiniciar os Containers (Zero Downtime setup would be ideal, but minimal downtime here)
+          docker compose up -d --build
+          
+          # 4. Limpeza (Opcional)
+          docker image prune -f
