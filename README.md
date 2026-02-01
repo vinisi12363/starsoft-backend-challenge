@@ -123,15 +123,33 @@ sequenceDiagram
 
 ## Como Executar
 
-O projeto pode ser executado em dois modos:
-1. **Modo Desenvolvimento (Dev)**: Ideal para codar e debugar. Roda a API localmente no host.
-2. **Modo Produção (Cluster)**: Ideal para **Teste de Stress**. Roda a API em Container Docker com Múltiplas Réplicas e Load Balancer.
+O projeto pode ser executado em três modos:
+
+1. **Modo Avaliação de desafio**: solicitado para rodar a aplicação e efetuar testes com relação ao desafio técnico.
+
+2. **Modo Desenvolvimento (Dev)**: Ideal para codar e debugar. Roda a API localmente no host.
+3. **Modo Produção (Cluster)**: Ideal para **Teste de Stress**. Roda a API em Container Docker com Múltiplas Réplicas e Load Balancer.
+
 
 ### Pré-requisitos
-- Node.js 18+ (Opcional, se usar Docker)
 - Docker e Docker Compose
+- Node.js 20+ (Apenas para Modo Dev ou Rodar Scripts localmente)
 
-### Opção A: Modo Desenvolvimento (Local)
+### Opção A: Modo Avaliação (Recomendado)
+
+Este modo sobe a aplicação completa utilizando o `docker-compose.yml` padrão. É a forma mais simples de ver o projeto rodando.
+
+1. **Suba o Ambiente**:
+   ```bash
+   docker compose up --build -d
+   ```
+   *O container `starsoft-api` rodará automaticamente as migrations e o seed.*
+
+2. **Acesse a Aplicação**:
+   > API: `http://localhost:4000`
+   > Swagger: `http://localhost:4000/api-docs`
+
+### Opção B: Modo Desenvolvimento (Local)
 
 Neste modo, o banco e serviços rodam no Docker, mas a API roda na sua máquina (host) com Hot Reload, facilitando o debug.
 
@@ -143,7 +161,7 @@ Neste modo, o banco e serviços rodam no Docker, mas a API roda na sua máquina 
 
 2. **Suba a Infraestrutura (Banco, Redis, Kafka)**
    ```bash
-   docker compose up -d postgres redis kafka zookeeper
+   docker compose -f docker-compose.dev.yml up -d
    ```
 
 3. **Instale Dependências e Popule o Banco**
@@ -160,7 +178,7 @@ Neste modo, o banco e serviços rodam no Docker, mas a API roda na sua máquina 
    > Acesso: `http://localhost:3000`
    > Swagger: `http://localhost:3000/api-docs`
 
-### Opção B: Modo Cluster (Cluster & Load Balancer)
+### Opção C: Modo Cluster (Cluster & Load Balancer)
 
 Neste modo, **TUDO** roda dentro do Docker. Configurei **3 instâncias** da API protegidas por um Nginx (Load Balancer). É o cenário perfeito para validar a concorrência distribuída.
 
@@ -175,14 +193,6 @@ Neste modo, **TUDO** roda dentro do Docker. Configurei **3 instâncias** da API 
    ```bash
    docker compose -f docker-compose.cluster.yml logs -f app
    ```
-
-3. **Execute o TESTE DE STRESS**
-   Este script simula 40+ usuários tentando comprar os mesmos 2 assentos simultaneamente para validar o Distributed Lock.
-   ```bash
-   npm run stress:test
-   # ou manualmente: node scripts/simulation.js
-   ```
-
 ---
 
 ## Endpoints Principais
@@ -211,7 +221,26 @@ npm run test:cov
 ```
 
 ---
+## Stress Test (Prova de Fogo)
 
+Criei um script específico para validar se o **Distributed Lock** realmente funciona.
+
+1. **Suba o Ambiente em Cluster** (se ainda não estiver rodando):
+   ```bash
+   docker compose -f docker-compose.cluster.yml up --build --scale app=3 -d
+   ```
+
+2. **Execute o Script de Simulação**:
+   Este script vai gerar 40 usuários tentando comprar os mesmos 2 assentos simultaneamente.
+   ```bash
+   node scripts/simulation.js
+   ```
+
+**O que esperar do resultado?**
+- **Sucesso**: Apenas 1 usuário consegue comprar (Status 201).
+- **Conflito**: ~4-5 usuários recebem `409 Conflict` (foram barrados pelo Lock do Redis).
+- **Throttle**: A maioria recebe `429 Too Many Requests` (proteção contra DDoS ativa).
+- **Zero Double Bookings**: O sistema garante integridade total dos dados.
 ## Logs
 
 Os logs estruturados são gerados via **Winston** e salvos na pasta `/logs`:
