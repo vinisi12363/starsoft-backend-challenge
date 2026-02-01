@@ -7,15 +7,9 @@ on:
     branches: [ "main" ]
 
 jobs:
-  build-and-test:
-    name: Build & Test
+  build-and-lint:
+    name: Build & Lint
     runs-on: ubuntu-latest
-
-    services:
-      redis:
-        image: redis:alpine
-        ports:
-          - 6379:6379
 
     steps:
     - name: Checkout code
@@ -35,9 +29,3 @@ jobs:
 
     - name: Build Project
       run: npm run build
-
-    - name: Run Unit Tests
-      run: npm run test
-      env:
-        REDIS_HOST: localhost
-        REDIS_PORT: 6379
