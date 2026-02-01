@@ -10,14 +10,14 @@ import {
   Query,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiParam } from '@nestjs/swagger';
-import type { SessionsService } from './sessions.service';
-import type { CreateSessionDto } from './dto/create-session.dto';
+import { SessionsService } from './sessions.service';
+import { CreateSessionDto } from './dto/create-session.dto';
 import type { SeatStatus } from '@prisma/client';
 
 @ApiTags('Sessions')
 @Controller('sessions')
 export class SessionsController {
-  constructor(private readonly sessionsService: SessionsService) {}
+  constructor(private readonly sessionsService: SessionsService) { }
 
   @Post()
   @HttpCode(HttpStatus.CREATED)

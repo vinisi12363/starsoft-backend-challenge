@@ -1,10 +1,10 @@
 import { Injectable } from '@nestjs/common';
-import type { PrismaService } from '../prisma/prisma.service';
+import { PrismaService } from '../prisma/prisma.service';
 import type { Prisma } from '@prisma/client';
 
 @Injectable()
 export class SalesRepository {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) { }
 
   // Centralizamos o include para não repetir esse "Inception" em todos os métodos
   private readonly saleInclude = {

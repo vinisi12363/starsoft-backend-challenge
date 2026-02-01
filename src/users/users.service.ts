@@ -1,7 +1,7 @@
 import { Injectable, ConflictException, NotFoundException } from '@nestjs/common';
 import type { CreateUserDto } from './dto/create-user.dto';
 import type { User } from '@prisma/client';
-import type { UsersRepository } from './users.repository';
+import { UsersRepository } from './users.repository';
 
 /**
  * Users Service
@@ -11,7 +11,7 @@ import type { UsersRepository } from './users.repository';
  */
 @Injectable()
 export class UsersService {
-  constructor(private readonly usersRepository: UsersRepository) {}
+  constructor(private readonly usersRepository: UsersRepository) { }
 
   /**
    * Cria um novo usuário

@@ -1,5 +1,5 @@
 import { Injectable, type OnModuleInit, type OnModuleDestroy, Logger } from '@nestjs/common';
-import type { ConfigService } from '@nestjs/config';
+import { ConfigService } from '@nestjs/config';
 import { Kafka, type Producer, type Consumer, type EachMessagePayload, logLevel } from 'kafkajs';
 
 export interface KafkaMessage<T = unknown> {

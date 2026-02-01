@@ -1,6 +1,6 @@
 import { Injectable, type OnModuleInit, Logger } from '@nestjs/common';
-import type { ConfigService } from '@nestjs/config';
-import type { KafkaService } from './kafka.service';
+import { ConfigService } from '@nestjs/config';
+import { KafkaService } from './kafka.service';
 import {
   KAFKA_TOPICS,
   type ReservationCreatedEvent,
@@ -126,10 +126,10 @@ export class KafkaConsumerService implements OnModuleInit {
   private async handleReservationCreated(event: ReservationCreatedEvent): Promise<void> {
     this.logger.log(
       `Reservation created: ${event.reservationId} | ` +
-        `User: ${event.userId} | ` +
-        `Session: ${event.sessionId} | ` +
-        `Seats: ${event.seatIds.length} | ` +
-        `Expires: ${new Date(event.expiresAt).toISOString()}`,
+      `User: ${event.userId} | ` +
+      `Session: ${event.sessionId} | ` +
+      `Seats: ${event.seatIds.length} | ` +
+      `Expires: ${new Date(event.expiresAt).toISOString()}`,
     );
 
     // Here you could:
@@ -141,9 +141,9 @@ export class KafkaConsumerService implements OnModuleInit {
   private async handleReservationExpired(event: ReservationExpiredEvent): Promise<void> {
     this.logger.log(
       `Reservation expired: ${event.reservationId} | ` +
-        `User: ${event.userId} | ` +
-        `Session: ${event.sessionId} | ` +
-        `Seats released: ${event.seatIds.length}`,
+      `User: ${event.userId} | ` +
+      `Session: ${event.sessionId} | ` +
+      `Seats released: ${event.seatIds.length}`,
     );
 
     // Here you could:
@@ -155,9 +155,9 @@ export class KafkaConsumerService implements OnModuleInit {
   private async handlePaymentConfirmed(event: PaymentConfirmedEvent): Promise<void> {
     this.logger.log(
       `Payment confirmed: Sale ${event.saleId} | ` +
-        `Reservation: ${event.reservationId} | ` +
-        `User: ${event.userId} | ` +
-        `Amount: R$${event.totalAmount.toFixed(2)}`,
+      `Reservation: ${event.reservationId} | ` +
+      `User: ${event.userId} | ` +
+      `Amount: R$${event.totalAmount.toFixed(2)}`,
     );
 
     // Here you could:
@@ -170,8 +170,8 @@ export class KafkaConsumerService implements OnModuleInit {
   private async handleSeatReleased(event: SeatReleasedEvent): Promise<void> {
     this.logger.log(
       `Seats released: Session ${event.sessionId} | ` +
-        `Seats: ${event.seatIds.length} | ` +
-        `Reason: ${event.reason}`,
+      `Seats: ${event.seatIds.length} | ` +
+      `Reason: ${event.reason}`,
     );
 
     // Here you could:
@@ -182,8 +182,8 @@ export class KafkaConsumerService implements OnModuleInit {
   private async handleSeatSold(event: SeatSoldEvent): Promise<void> {
     this.logger.log(
       `Seats sold: Session ${event.sessionId} | ` +
-        `Seats: ${event.seatIds.length} | ` +
-        `Sale: ${event.saleId}`,
+      `Seats: ${event.seatIds.length} | ` +
+      `Sale: ${event.saleId}`,
     );
 
     // Here you could:

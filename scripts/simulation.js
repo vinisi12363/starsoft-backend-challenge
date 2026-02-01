@@ -2,7 +2,7 @@
 const axios = require('axios'); // Need to install axios if not present, or use fetch
 const { v4: uuidv4 } = require('uuid');
 
-const BASE_URL = 'http://localhost:3000';
+const BASE_URL = 'http://localhost:4000';
 const CONCURRENT_USERS = 40; // 40 users (to stay under Rate Limit 100)
 const TOTAL_INSTANCES = 10;
 const AVAILABLE_SEATS_TO_FIGHT_FOR = 2; // We will target 2 specific seats

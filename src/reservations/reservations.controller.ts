@@ -19,7 +19,7 @@ import {
     ApiExtraModels,
 } from '@nestjs/swagger';
 import { ReservationsService } from './reservations.service';
-import type { CreateReservationDto } from './dto/create-reservation.dto';
+import { CreateReservationDto } from './dto/create-reservation.dto';
 import { UseGuards } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { DuplicateRequestGuard } from '../common/guards/duplicate-request.guard';

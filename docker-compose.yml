@@ -15,7 +15,7 @@ services:
     environment:
       DATABASE_URL: "postgresql://starsoft:starsoft123@postgres:5432/cinema_tickets?schema=public"
       REDIS_HOST: redis
-      REDIS_PORT: 6380
+      REDIS_PORT: 6379
       KAFKA_BROKERS: kafka:29092
       PORT: 3000
     networks:

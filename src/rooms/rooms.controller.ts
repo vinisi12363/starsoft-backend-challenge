@@ -1,7 +1,7 @@
 import { Controller, Get, Post, Body, Param, ParseUUIDPipe } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiParam } from '@nestjs/swagger';
 import { RoomsService } from './rooms.service';
-import type { CreateRoomDto } from './dto/create-room.dto';
+import { CreateRoomDto } from './dto/create-room.dto';
 
 @ApiTags('Rooms')
 @Controller('rooms')
