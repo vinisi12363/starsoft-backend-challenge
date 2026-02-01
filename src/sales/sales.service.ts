@@ -1,10 +1,10 @@
 import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
-import type { PrismaService } from '../prisma/prisma.service';
-import type { KafkaService } from '../kafka/kafka.service';
+import { PrismaService } from '../prisma/prisma.service';
+import { KafkaService } from '../kafka/kafka.service';
 import { ReservationStatus, SeatStatus, type Sale, Prisma } from '@prisma/client';
 import { KAFKA_TOPICS, SALE_EVENTS, SEAT_EVENTS } from '../kafka/kafka.events';
-import type { SalesRepository } from './sales.repository';
-import type { ReservationsRepository } from '../reservations/reservations.repository';
+import { SalesRepository } from './sales.repository';
+import { ReservationsRepository } from '../reservations/reservations.repository';
 
 @Injectable()
 export class SalesService {
@@ -15,7 +15,7 @@ export class SalesService {
     private readonly salesRepository: SalesRepository,
     private readonly reservationsRepository: ReservationsRepository,
     private readonly kafka: KafkaService,
-  ) {}
+  ) { }
 
   async confirmPayment(reservationId: string): Promise<Sale> {
     // 1. Busca a reserva usando o Repository (Mantendo o padrão)
