@@ -20,6 +20,9 @@ import {
 } from '@nestjs/swagger';
 import { ReservationsService } from './reservations.service';
 import { CreateReservationDto } from './dto/create-reservation.dto';
+import { UseGuards } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
+import { DuplicateRequestGuard } from '../common/guards/duplicate-request.guard';
 
 @ApiTags('Reservations')
 @Controller('reservations')
@@ -57,6 +60,8 @@ export class ReservationsController {
         status: 409,
         description: 'Conflito: Um ou mais assentos já estão reservados ou vendidos.',
     })
+    @UseGuards(DuplicateRequestGuard)
+    @Throttle({ default: { limit: 5, ttl: 60000 } }) // Limit: 5 reservations per minute per IP
     async create(
         @Body() createReservationDto: CreateReservationDto,
         @Headers('x-idempotency-key') idempotencyKey?: string,
@@ -66,7 +71,7 @@ export class ReservationsController {
     }
 
     @Get(':id')
-    @ApiOperation({ 
+    @ApiOperation({
         summary: 'Consultar detalhes de uma reserva',
         description: 'Retorna os dados da reserva, incluindo os labels dos assentos (ex: A1, B2).'
     })
@@ -79,7 +84,7 @@ export class ReservationsController {
 
     @Delete(':id')
     @HttpCode(HttpStatus.NO_CONTENT)
-    @ApiOperation({ 
+    @ApiOperation({
         summary: 'Cancelar manualmente uma reserva',
         description: 'Libera os assentos vinculados à reserva e altera o status para CANCELLED.'
     })

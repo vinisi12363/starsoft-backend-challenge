@@ -6,6 +6,7 @@ import { WinstonModule } from 'nest-winston';
 import * as winston from 'winston';
 import 'winston-daily-rotate-file';
 import { AppModule } from './app.module';
+import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
@@ -94,6 +95,11 @@ API RESTful para gestão de sessões de cinema, reservas de assentos e vendas de
     .build();
 
   const document = SwaggerModule.createDocument(app, config);
+  // Custom headers to identify instance (Load Balancer Debugging)
+  const instanceId = process.env.HOSTNAME || 'localhost';
+
+  // Global Interceptor for logging Worker ID
+  app.useGlobalInterceptors(new LoggingInterceptor());
   SwaggerModule.setup('api-docs', app, document);
 
   const port = process.env.PORT ?? 3000;

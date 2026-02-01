@@ -1,8 +1,8 @@
 import { Injectable, ConflictException, NotFoundException, Logger, BadRequestException } from '@nestjs/common';
 import { ReservationsRepository } from './reservations.repository';
-import { PrismaService } from 'src/prisma';
-import { RedisService } from 'src/redis';
-import { KafkaService } from 'src/kafka';
+import { PrismaService } from '../prisma';
+import { RedisService } from '../redis';
+import { KafkaService } from '../kafka';
 import { CreateReservationDto } from './dto';
 import { ReservationStatus, SeatStatus } from '@prisma/client';
 // ... outros imports (Kafka, Redis, DTOs)
@@ -16,9 +16,9 @@ export class ReservationsService {
         private readonly repository: ReservationsRepository,
         private readonly redis: RedisService,
         private readonly kafka: KafkaService,
-    ) {}
+    ) { }
 
-   async create(dto: CreateReservationDto, idempotencyKey?: string) {
+    async create(dto: CreateReservationDto, idempotencyKey?: string) {
         const { userId, sessionId, sessionSeatIds } = dto;
 
         // 1. Idempotência (Garantia de que não processa o mesmo request)
@@ -40,7 +40,7 @@ export class ReservationsService {
                 sessionId,
                 sessionSeatIds,
                 idempotencyKey,
-                expiresAt: new Date(Date.now() + 300000) // 5 min
+                expiresAt: new Date(Date.now() + 30000) // 30 segundos
             });
 
             // 4. Mensageria (Kafka)
@@ -63,7 +63,7 @@ export class ReservationsService {
         return {
             ...res,
             //@ts-ignore
-            seatLabels: res.reservationSeats?.map(rs => 
+            seatLabels: res.reservationSeats?.map(rs =>
                 `${rs.sessionSeat.seat.rowLabel}${rs.sessionSeat.seat.seatNumber}`
             )
         };
@@ -101,7 +101,7 @@ export class ReservationsService {
                 // A. Libera os assentos na tabela SessionSeat
                 await tx.sessionSeat.updateMany({
                     where: { id: { in: sessionSeatIds } },
-                    data: { 
+                    data: {
                         status: SeatStatus.AVAILABLE,
                         // Opcional: não incrementamos version aqui pois voltamos ao estado original
                     }

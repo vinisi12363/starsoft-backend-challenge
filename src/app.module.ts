@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { APP_GUARD } from '@nestjs/core';
 import { ScheduleModule } from '@nestjs/schedule';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 
@@ -27,6 +29,12 @@ import { RoomsModule } from './rooms/rooms.module';
     // Scheduler for expiration cron job
     ScheduleModule.forRoot(),
 
+    // Rate Limiting (Default: 10 requests per 60 seconds globally, can be overridden)
+    ThrottlerModule.forRoot([{
+      ttl: 60000,
+      limit: 100,
+    }]),
+
     // Core infrastructure
     PrismaModule,
     RedisModule,
@@ -40,6 +48,13 @@ import { RoomsModule } from './rooms/rooms.module';
     RoomsModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [
+    AppService,
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
+    },
+  ],
 })
-export class AppModule { }
+export class AppModule {
+}

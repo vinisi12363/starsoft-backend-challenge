@@ -7,6 +7,9 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiParam } from '@nestjs/swagger';
 import { SalesService } from './sales.service';
+import { UseGuards } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
+import { DuplicateRequestGuard } from '../common/guards/duplicate-request.guard';
 
 @ApiTags('sales')
 @Controller()
@@ -29,6 +32,8 @@ export class SalesController {
         description: 'Reservation is expired or not in PENDING status',
     })
     @ApiResponse({ status: 404, description: 'Reservation not found' })
+    @UseGuards(DuplicateRequestGuard)
+    @Throttle({ default: { limit: 10, ttl: 60000 } })
     async confirmPayment(@Param('id', ParseUUIDPipe) id: string) {
         return this.salesService.confirmPayment(id);
     }
