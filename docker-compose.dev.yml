@@ -3,7 +3,7 @@ services:
   postgres:
     image: postgres:15-alpine
     container_name: starsoft-postgres
-    restart: unless-stopped
+    restart: no
     environment:
       POSTGRES_USER: starsoft
       POSTGRES_PASSWORD: starsoft123
@@ -23,7 +23,7 @@ services:
   redis:
     image: redis:8.2.2
     container_name: starsoft-redis
-    restart: unless-stopped
+    restart: no
     ports:
       - "6380:6379"
     volumes:
@@ -40,7 +40,7 @@ services:
   zookeeper:
     image: confluentinc/cp-zookeeper:7.5.0
     container_name: starsoft-zookeeper
-    restart: unless-stopped
+    restart: no
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
       ZOOKEEPER_TICK_TIME: 2000
@@ -50,17 +50,17 @@ services:
       - zookeeper_data:/var/lib/zookeeper/data
       - zookeeper_log:/var/lib/zookeeper/log
     healthcheck:
-      test: [ "CMD", "nc", "-z", "localhost", "2181" ]
-      interval: 10s
+      test: ["CMD", "nc", "-z", "localhost", "2181"]
+      interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 10
     networks:
       - starsoft-network
 
   kafka:
     image: confluentinc/cp-kafka:7.5.0
     container_name: starsoft-kafka
-    restart: unless-stopped
+    restart: no
     depends_on:
       zookeeper:
         condition: service_healthy
@@ -91,7 +91,7 @@ services:
   kafka-ui:
     image: provectuslabs/kafka-ui:latest
     container_name: starsoft-kafka-ui
-    restart: unless-stopped
+    restart: no
     depends_on:
       kafka:
         condition: service_healthy

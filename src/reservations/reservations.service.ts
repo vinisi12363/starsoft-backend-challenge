@@ -18,53 +18,42 @@ export class ReservationsService {
         private readonly kafka: KafkaService,
     ) {}
 
-    async create(dto: CreateReservationDto, idempotencyKey?: string) {
+   async create(dto: CreateReservationDto, idempotencyKey?: string) {
         const { userId, sessionId, sessionSeatIds } = dto;
 
-        // 1. Camada de Repositório para Idempotência
+        // 1. Idempotência (Garantia de que não processa o mesmo request)
         if (idempotencyKey) {
             const existing = await this.repository.findByIdempotencyKey(idempotencyKey);
             if (existing) return this.enrichReservation(existing);
         }
 
-        // 2. Lógica de Concorrência (Redis)
-        const sortedIds = [...sessionSeatIds].sort();
+        // 2. Locks de Concorrência (Redis) - Regra de "trânsito" da aplicação
         const locks = await this.redis.acquireMultipleLocks(
-            sortedIds.map(id => `lock:ss:${id}`), 
-            10000
+            sessionSeatIds.map(id => `lock:ss:${id}`), 10000
         );
-        if (!locks) throw new ConflictException('Assentos bloqueados.');
+        if (!locks) throw new ConflictException('Assentos em processo de reserva.');
 
         try {
-            // 3. Orquestração da Transação
-            const reservation = await this.prisma.$transaction(async (tx) => {
-                // UPDATE com Optimistic Locking (direto no tx para performance)
-                await Promise.all(sortedIds.map(id => 
-                    tx.sessionSeat.update({
-                        where: { id, status: 'AVAILABLE' }, // Só reserva se estiver disponível
-                        data: { status: 'RESERVED', version: { increment: 1 } }
-                    })
-                ));
-
-                return tx.reservation.create({
-                    data: {
-                        userId, sessionId, idempotencyKey,
-                        status: 'PENDING',
-                        expiresAt: new Date(Date.now() + 30000),
-                        reservationSeats: {
-                            create: sortedIds.map(id => ({ sessionSeatId: id }))
-                        }
-                    },
-                    include: {
-                        reservationSeats: { include: { sessionSeat: { include: { seat: true } } } }
-                    }
-                });
+            // 3. Delega a bomba para o Repositório
+            const reservation = await this.repository.createWithAtomicSeats({
+                userId,
+                sessionId,
+                sessionSeatIds,
+                idempotencyKey,
+                expiresAt: new Date(Date.now() + 300000) // 5 min
             });
 
-            // 4. Mensageria
+            // 4. Mensageria (Kafka)
             await this.kafka.emit('reservations-topic', { event: 'CREATED', ...reservation });
 
             return this.enrichReservation(reservation);
+
+        } catch (error) {
+            // Tratamos o erro específico que o Repository lançou
+            if (error.message === 'SEATS_NOT_AVAILABLE') {
+                throw new ConflictException('Um ou mais assentos já foram reservados.');
+            }
+            throw error; // Erros genéricos continuam subindo
         } finally {
             await this.redis.releaseMultipleLocks(locks);
         }

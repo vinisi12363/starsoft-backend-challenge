@@ -19,6 +19,56 @@ export class ReservationsRepository {
         user: true,
     };
 
+    async createWithAtomicSeats(data: {
+        userId: string;
+        sessionId: string;
+        sessionSeatIds: string[];
+        idempotencyKey?: string;
+        expiresAt: Date;
+    }) {
+        const { userId, sessionId, sessionSeatIds, idempotencyKey, expiresAt } = data;
+
+        // Toda a "sujeira" do Prisma e da transação fica escondida aqui
+        return this.prisma.$transaction(async (tx) => {
+            
+            // 1. Tenta o Update Atômico (usando updateMany para não explodir erro 500)
+            const updateResults = await Promise.all(
+                sessionSeatIds.map(id =>
+                    tx.sessionSeat.updateMany({
+                        where: { id, status: 'AVAILABLE' },
+                        data: { status: 'RESERVED', version: { increment: 1 } }
+                    })
+                )
+            );
+
+            // 2. Verifica se algum falhou (se o count for 0, o lugar já era)
+            const success = updateResults.every(res => res.count === 1);
+            if (!success) {
+                // Lançamos o erro aqui, a Service só repassa ou trata
+                throw new Error('SEATS_NOT_AVAILABLE');
+            }
+
+            // 3. Cria a reserva de fato
+            return tx.reservation.create({
+                data: {
+                    userId,
+                    sessionId,
+                    idempotencyKey,
+                    status: 'PENDING',
+                    expiresAt,
+                    reservationSeats: {
+                        create: sessionSeatIds.map(id => ({ sessionSeatId: id }))
+                    }
+                },
+                include: {
+                    reservationSeats: {
+                        include: { sessionSeat: { include: { seat: true } } }
+                    }
+                }
+            });
+        });
+    }
+
     async findById(id: string) {
         return this.prisma.reservation.findUnique({
             where: { id },
@@ -52,6 +102,22 @@ export class ReservationsRepository {
         include: {
             reservationSeats: true, // Aqui pegamos os IDs das SessionSeats
         },
+    });
+}
+
+async expire(id: string, sessionSeatIds: string[]) {
+    return this.prisma.$transaction(async (tx) => {
+        // 1. Libera os assentos (Atomicidade)
+        await tx.sessionSeat.updateMany({
+            where: { id: { in: sessionSeatIds } },
+            data: { status: 'AVAILABLE' },
+        });
+
+        // 2. Marca a reserva como EXPIRED
+        return tx.reservation.update({
+            where: { id },
+            data: { status: 'EXPIRED' },
+        });
     });
 }
 }

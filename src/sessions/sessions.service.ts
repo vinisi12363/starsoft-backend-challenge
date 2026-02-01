@@ -51,23 +51,20 @@ export class SessionsService {
         });
     }
 
-    async getSessionMap(sessionId: string) {
-        const session = await this.sessionsRepository.findById(sessionId);
-        if (!session) throw new NotFoundException('Sessão não encontrada.');
-
-        const seats = await this.sessionsRepository.findSessionSeats(sessionId);
-
-        // Estatísticas em tempo real
-        const stats = {
-            total: seats.length,
-            available: seats.filter(s => s.status === SeatStatus.AVAILABLE).length,
-            reserved: seats.filter(s => s.status === SeatStatus.RESERVED).length,
-            sold: seats.filter(s => s.status === SeatStatus.SOLD).length,
-        };
-
-        return { session, seats, stats };
-    }
-
+    async getSessionMap(sessionId: string, status?: SeatStatus) {
+          
+            const session = await this.sessionsRepository.findById(sessionId, status);
+            
+            if (!session) throw new NotFoundException('Sessão não encontrada.');
+           
+            return { 
+                session: {
+                    ...session,
+                    sessionSeats: undefined
+                }, 
+                seats: session.sessionSeats,
+            };
+        }
         async findAll() {
             return this.sessionsRepository.findAll();
         }
