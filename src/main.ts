@@ -61,9 +61,13 @@ async function bootstrap() {
     .setTitle('Cinema Ticket API')
     .setDescription(
       `
-## Sistema de Venda de Ingressos para Cinema
+## Sistema de Venda de Ingressos com controle de concorrência - Starsoft API
 
-API RESTful para gestão de sessões de cinema, reservas de assentos e vendas de ingressos.
+Esta é uma API REST de venda de ingressos de cinema com alta concorrência controle de condições de corrida, construída com NestJS, Prisma, Redis e Kafka. Desenvolvida para atender o Desafio Técnico da StarSoft para Desenvolvedor Backend.
+
+- **Desenvolvedor**: Marcos Vinícius Pedreira Vieira
+- **Email**: viniciuspv.si@gmail.com
+
 
 ### Funcionalidades Principais
 

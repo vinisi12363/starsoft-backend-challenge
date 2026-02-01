@@ -1,4 +1,4 @@
-# Cinema Ticket API
+# Cinema Ticket API - StarSoft Challenge
 
 Esta é uma API REST de venda de ingressos de cinema com alta concorrêcia controle de condições de corrida, construída com NestJS, Prisma, Redis e Kafka. Desenvolvida para atender o Desafio Técnico da StarSoft para Desenvolvedor Backend.
 
@@ -7,14 +7,20 @@ Esta é uma API REST de venda de ingressos de cinema com alta concorrêcia contr
 
 ---
 
+## Visualização do swagger da API em ambiente de produção
+
+- **Swagger**: https://apistarsoft.vvsistemas.com.br/api-docs
+
+
 ## Tecnologias
 
 - **Node.js & NestJS**: Framework robusto para escalabilidade.
 - **PostgreSQL**: Banco de dados relacional para persistência segura.
-- **Redis**: Cache distribuído e **Distributed Locks** para controle de concorrência.
+- **Redis**: Cache distribuído e **Pesimistic Locks** para controle de concorrência.
 - **Kafka**: Mensageria para processamento assíncrono de eventos (Reservas, Pagamentos, Expiração).
-- **Prisma ORM**: Tipagem segura e migrações.
+- **Prisma ORM**: Execução de **Transações Atômicas** em áreas críticas + **Optimist Lock**.
 - **Docker & Docker Compose**: Ambiente de desenvolvimento containerizado.
+- **CI/CD Pipeline**: Integração contínua e entrega contínua com GitHub Actions.
 
 
 ---
@@ -27,18 +33,36 @@ Para impedir que dois usuários comprem o mesmo assento simultaneamente:
 - **Transações Atômicas (Prisma)**: A criação da reserva e a atualização dos status dos assentos ocorrem dentro de uma `prisma.$transaction`.
 
 ### 2. Deadlocks
-- **Ordenação de Recursos**: Para evitar que a Thread A trave o Assento 1 e espere o 2, enquanto a Thread B tem o 2 e espera o 1, o sistema **ordena os IDs dos assentos** antes de solicitar os locks no Redis.
+- **Ordenação de Recursos**: Para evitar que a Thread A trave o Assento 1 e espere o 2, enquanto a Thread B tem o 2 e espera o 1, implementei a **ordenação dos IDs dos assentos** antes de solicitar os locks no Redis.
 
 ### 3. Expiração de Reservas (TTL)
 - **Cron Job**: Um serviço (`ReservationExpirationService`) roda a cada 5 segundos buscando reservas onde `expiresAt < NOW()`.
 - **Estratégia**: Libera os assentos no banco e emite um evento `ReservationExpired` no Kafka.
 
 ### 4. Mensageria (Kafka)
-- O sistema desacopla o fluxo principal de tarefas secundárias (notificações, analytics) emitindo eventos como `reservation.created`, `payment.confirmed`, etc.
+- Decidi desacoplar o fluxo principal de tarefas secundárias (notificações, analytics) emitindo eventos como `reservation.created`, `payment.confirmed`, etc.
 
 ---
 
 ## Diagramas da Solução
+
+### Fluxo Simplificado de Compra
+
+```mermaid
+flowchart TD
+    A([Início]) --> B[Usuário Consulta Sessão]
+    B --> C[Visualiza Mapa de Assentos]
+    C --> D[Seleciona Assentos Disponíveis]
+    D --> E[Solicita Reserva]
+    E --> F{Redis: Assentos Livres?}
+    F -- Não --> G[Erro 409: Conflict]
+    F -- Sim --> H[Adquire Lock no Redis]
+    H --> I[Cria Reserva no PostgreSQL]
+    I --> J[Retorna Sucesso ao Usuário]
+    J --> K[Usuário Efetua Pagamento]
+    K --> L([Fim: Ingressos Emitidos])
+    G --> C
+```
 
 ### Arquitetura de Infraestrutura (Cluster)
 
@@ -59,7 +83,7 @@ graph TD
     end
 ```
 
-### 🔄 Fluxo de Reserva (Concorrência)
+### Fluxo de Reserva (Blindado para alta Concorrência)
 
 ```mermaid
 sequenceDiagram
@@ -126,7 +150,7 @@ Neste modo, o banco e serviços rodam no Docker, mas a API roda na sua máquina 
    ```bash
    npm install
    npx prisma migrate dev
-   npm run seed # (Opcional: Popula filmes e salas iniciais)
+   npm run seed
    ```
 
 4. **Inicie a Aplicação**
@@ -136,9 +160,9 @@ Neste modo, o banco e serviços rodam no Docker, mas a API roda na sua máquina 
    > Acesso: `http://localhost:3000`
    > Swagger: `http://localhost:3000/api-docs`
 
-### Opção B: Modo Produção (Cluster & Load Balancer)
+### Opção B: Modo Cluster (Cluster & Load Balancer)
 
-Neste modo, **TUDO** roda dentro do Docker. Subimos **3 instâncias** da API protegidas por um Nginx (Load Balancer). É o cenário perfeito para validar a concorrência distribuída.
+Neste modo, **TUDO** roda dentro do Docker. Configurei **3 instâncias** da API protegidas por um Nginx (Load Balancer). É o cenário perfeito para validar a concorrência distribuída.
 
 1. **Suba o Cluster (Build + Scale)**
    ```bash
