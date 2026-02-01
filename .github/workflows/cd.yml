@@ -19,15 +19,12 @@ jobs:
         key: ${{ secrets.SSH_PRIVATE_KEY }}
         port: 22
         script: |
-          # 1. Navegar até a pasta do projeto
-          # Ajuste este caminho se for diferente no seu servidor
           cd /var/www/starsoft-backend-challenge
           
-          # 2. Baixar as últimas atualizações do código
           git pull origin main
           
-          # 3. Reconstruir e Reiniciar os Containers (Zero Downtime setup would be ideal, but minimal downtime here)
           docker compose up -d --build
           
-          # 4. Limpeza (Opcional)
           docker image prune -f
+
+          sudo systemctl reload nginx
