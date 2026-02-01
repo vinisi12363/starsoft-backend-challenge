@@ -30,10 +30,12 @@ import { RoomsModule } from './rooms/rooms.module';
     ScheduleModule.forRoot(),
 
     // Rate Limiting (Default: 10 requests per 60 seconds globally, can be overridden)
-    ThrottlerModule.forRoot([{
-      ttl: 60000,
-      limit: 100,
-    }]),
+    ThrottlerModule.forRoot([
+      {
+        ttl: 60000,
+        limit: 100,
+      },
+    ]),
 
     // Core infrastructure
     PrismaModule,
@@ -56,5 +58,4 @@ import { RoomsModule } from './rooms/rooms.module';
     },
   ],
 })
-export class AppModule {
-}
+export class AppModule {}

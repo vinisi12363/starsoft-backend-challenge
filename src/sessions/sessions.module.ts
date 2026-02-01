@@ -5,8 +5,8 @@ import { SessionsRepository } from './sessions.repository';
 import { PrismaModule } from '../prisma/prisma.module';
 
 @Module({
-    imports: [PrismaModule],
-    controllers: [SessionsController],
-    providers: [SessionsService, SessionsRepository],
+  imports: [PrismaModule],
+  controllers: [SessionsController],
+  providers: [SessionsService, SessionsRepository],
 })
-export class SessionsModule { }
+export class SessionsModule {}

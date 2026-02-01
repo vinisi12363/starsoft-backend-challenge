@@ -4,7 +4,7 @@ import { KafkaConsumerService } from './kafka-consumer.service';
 
 @Global()
 @Module({
-    providers: [KafkaService, KafkaConsumerService],
-    exports: [KafkaService],
+  providers: [KafkaService, KafkaConsumerService],
+  exports: [KafkaService],
 })
-export class KafkaModule { }
+export class KafkaModule {}

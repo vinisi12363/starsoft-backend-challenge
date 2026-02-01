@@ -7,9 +7,9 @@ import { KafkaModule } from '../kafka/kafka.module';
 import { ReservationsModule } from 'src/reservations/reservations.module';
 
 @Module({
-    imports: [PrismaModule, KafkaModule, ReservationsModule],
-    controllers: [SalesController],
-    exports:[SalesRepository],
-    providers: [SalesService, SalesRepository],
+  imports: [PrismaModule, KafkaModule, ReservationsModule],
+  controllers: [SalesController],
+  exports: [SalesRepository],
+  providers: [SalesService, SalesRepository],
 })
-export class SalesModule { }
+export class SalesModule {}

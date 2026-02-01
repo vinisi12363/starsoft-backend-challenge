@@ -107,7 +107,7 @@ API RESTful para gestão de sessões de cinema, reservas de assentos e vendas de
 
   console.log(`API running on: http://localhost:${port}`);
   console.log(`Swagger docs available at: http://localhost:${port}/api-docs`);
-  console.log('Kafka UI running on: http://localhost:8080 ')
+  console.log('Kafka UI running on: http://localhost:8080 ');
 }
 
 bootstrap();
