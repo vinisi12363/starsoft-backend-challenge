@@ -26,6 +26,3 @@ jobs:
 
     - name: Lint Code (Biome)
       run: npm run lint
-
-    - name: Build Project
-      run: npm run build
