@@ -8,11 +8,12 @@ import {
   HttpCode,
   HttpStatus,
   Query,
+  ParseEnumPipe,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiParam } from '@nestjs/swagger';
 import { SessionsService } from './sessions.service';
 import { CreateSessionDto } from './dto/create-session.dto';
-import type { SeatStatus } from '@prisma/client';
+import { SeatStatus } from '@prisma/client';
 
 @ApiTags('sessions')
 @Controller('sessions')
@@ -60,8 +61,8 @@ export class SessionsController {
   @ApiResponse({ status: 404, description: 'Sessão não encontrada.' })
   async getSeatAvailability(
     @Param('id', ParseUUIDPipe) id: string,
-    @Query('status') status?: SeatStatus,
+    @Query('status', new ParseEnumPipe(SeatStatus, { optional: true })) status?: SeatStatus,
   ) {
-    return this.sessionsService.getSessionMap(id, status || undefined);
+    return this.sessionsService.getSessionMap(id, status);
   }
 }

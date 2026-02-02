@@ -55,6 +55,7 @@ export class RedisService implements OnModuleDestroy {
     const result = await this.client.set(key, value, 'PX', ttlMs, 'NX');
 
     if (result === 'OK') {
+      console.log(`[REDIS] Lock adquirido: ${key} (TTL: ${ttlMs}ms)`);
       this.logger.debug(`Lock acquired: ${key}`);
       return {
         key,
@@ -63,18 +64,21 @@ export class RedisService implements OnModuleDestroy {
       };
     }
 
+    console.log(` [REDIS] Falha ao adquirir lock: ${key} (Já está ocupado)`);
     this.logger.debug(`Failed to acquire lock: ${key}`);
     return null;
   }
 
- 
+
   async releaseLock(key: string, value: string): Promise<boolean> {
     const result = await this.client.eval(this.lockScript, 1, key, value);
     const released = result === 1;
 
     if (released) {
+      console.log(`[REDIS] Lock liberado: ${key}`);
       this.logger.debug(`Lock released: ${key}`);
     } else {
+      console.log(`[REDIS] Falha ao liberar lock: ${key} (Expirou ou não é dono)`);
       this.logger.warn(`Failed to release lock (not owner or expired): ${key}`);
     }
 
@@ -120,7 +124,7 @@ export class RedisService implements OnModuleDestroy {
     return result === 1;
   }
 
-  
+
   async get<T>(key: string): Promise<T | null> {
     const value = await this.client.get(key);
     return value ? JSON.parse(value) : null;

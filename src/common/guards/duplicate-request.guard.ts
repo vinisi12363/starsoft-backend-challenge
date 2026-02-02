@@ -21,7 +21,7 @@ export class DuplicateRequestGuard implements CanActivate {
 
   constructor(
     @Inject(RedisService) private readonly redisService: RedisService,
-  ) {}
+  ) { }
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest();
@@ -32,8 +32,8 @@ export class DuplicateRequestGuard implements CanActivate {
       return true;
     }
 
-  
-    const userId = body.userId || headers['x-user-id'] || request.ip;
+
+    const userId = (body && body.userId) || headers['x-user-id'] || request.ip;
 
 
     // Create a hash of the critical data
@@ -49,6 +49,7 @@ export class DuplicateRequestGuard implements CanActivate {
     const lock = await this.redisService.acquireLock(cacheKey, this.WINDOW_MS);
 
     if (!lock) {
+      console.log(`[GUARD] Bloqueado! Requisição duplicada detectada (Hash: ${hash.substring(0, 8)}...)`);
       this.logger.warn(`Duplicate request detected for User/IP: ${userId} on ${url}`);
       throw new HttpException(
         'Duplicate request detected. Please wait a moment before retrying.',
@@ -56,7 +57,9 @@ export class DuplicateRequestGuard implements CanActivate {
       );
     }
 
-  
+    console.log(`[GUARD] Passou! Requisição única (Hash: ${hash.substring(0, 8)}...)`);
+
+
     return true;
   }
 }

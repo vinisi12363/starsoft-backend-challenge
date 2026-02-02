@@ -28,6 +28,7 @@ export class ReservationsRepository {
         const { userId, sessionId, sessionSeatIds, idempotencyKey, expiresAt } = data;
 
         return this.prisma.$transaction(async (tx) => {
+            console.log(`[ATOMIC RESERVATION DB] Iniciando tentativa de transação para ${sessionSeatIds.length} assentos...`);
             const updateResults = await Promise.all(
                 sessionSeatIds.map((id) =>
                     tx.sessionSeat.updateMany({
@@ -39,8 +40,10 @@ export class ReservationsRepository {
 
             const success = updateResults.every((res) => res.count === 1);
             if (!success) {
+                console.log(`[ATOMIC RESERVATION DB] FALHA na transação! Algum assento já não estava AVAILABLE.`);
                 throw new Error('SEATS_NOT_AVAILABLE');
             }
+            console.log(`[ATOMIC RESERVATION DB] SUCESSO! ${sessionSeatIds.length} assentos travados atomicamente no banco.`);
 
             return tx.reservation.create({
                 data: {

@@ -41,12 +41,12 @@ export class ReservationsService {
         if (!locks) throw new ConflictException('Assentos em processo de reserva.');
 
         try {
-            const reservation = await this.repository.createWithAtomicSeats({   
+            const reservation = await this.repository.createWithAtomicSeats({
                 userId,
                 sessionId,
                 sessionSeatIds,
                 idempotencyKey,
-                expiresAt: new Date(Date.now() + this.configService.get<number>('RESERVATION_TTL_SECONDS', 30000)),
+                expiresAt: new Date(Date.now() + Number(this.configService.get<number>('RESERVATION_TTL_SECONDS', 30000))),
             });
 
             await this.kafka.emit('reservations-topic', { event: 'CREATED', ...reservation });

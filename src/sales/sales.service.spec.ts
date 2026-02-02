@@ -1,15 +1,14 @@
 import { Test, type TestingModule } from '@nestjs/testing';
 import { SalesService } from './sales.service';
-import { PrismaService } from '../prisma/prisma.service';
+
 import { KafkaService } from '../kafka/kafka.service';
-import { ReservationsRepository } from '../reservations/reservations.repository'; // Import missing repository
-import { SalesRepository } from './sales.repository'; // Import missing repository
+import { ReservationsRepository } from '../reservations/reservations.repository'; 
+import { SalesRepository } from './sales.repository';
 import { NotFoundException, BadRequestException } from '@nestjs/common';
 import { ReservationStatus, SeatStatus, Prisma } from '@prisma/client';
 
 describe('SalesService', () => {
   let service: SalesService;
-  let prismaService: jest.Mocked<PrismaService>;
   let kafkaService: jest.Mocked<KafkaService>;
   let reservationsRepository: jest.Mocked<ReservationsRepository>;
   let salesRepository: jest.Mocked<SalesRepository>;
@@ -17,9 +16,9 @@ describe('SalesService', () => {
   const mockSession = {
     id: 'session-1',
     movieTitle: 'Test Movie',
-    startShowTime: new Date(), // Fixed field name
-    endShowTime: new Date(), // Added missing field
-    roomId: 'room-1', // Fixed field name
+    startShowTime: new Date(), 
+    endShowTime: new Date(), 
+    roomId: 'room-1', 
     ticketPrice: new Prisma.Decimal(25.0),
     createdAt: new Date(),
     updatedAt: new Date(),
@@ -76,25 +75,7 @@ describe('SalesService', () => {
   };
 
   beforeEach(async () => {
-    const prismaServiceMock = {
-      reservation: {
-        findUnique: jest.fn(),
-        update: jest.fn(),
-      },
-      seat: {
-        updateMany: jest.fn(),
-      },
-      sale: {
-        create: jest.fn(),
-        findUnique: jest.fn(),
-        findMany: jest.fn(),
-      },
-      //@ts-ignore
-      $transaction: jest.fn((cb) => cb(prismaServiceMock)), // Mock transaction execution
-      sessionSeat: {
-        updateMany: jest.fn(),
-      },
-    };
+
 
     const kafkaServiceMock = {
       emit: jest.fn().mockResolvedValue(undefined),
@@ -105,7 +86,7 @@ describe('SalesService', () => {
     };
 
     const salesRepositoryMock = {
-      create: jest.fn(),
+      createSaleTransaction: jest.fn(),
       findAll: jest.fn(),
       findByUserId: jest.fn(),
       findById: jest.fn(),
@@ -114,7 +95,7 @@ describe('SalesService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         SalesService,
-        { provide: PrismaService, useValue: prismaServiceMock },
+        SalesService,
         { provide: KafkaService, useValue: kafkaServiceMock },
         { provide: ReservationsRepository, useValue: reservationsRepositoryMock },
         { provide: SalesRepository, useValue: salesRepositoryMock },
@@ -122,7 +103,6 @@ describe('SalesService', () => {
     }).compile();
 
     service = module.get<SalesService>(SalesService);
-    prismaService = module.get(PrismaService);
     kafkaService = module.get(KafkaService);
     reservationsRepository = module.get(ReservationsRepository);
     salesRepository = module.get(SalesRepository);
@@ -147,8 +127,9 @@ describe('SalesService', () => {
         },
       };
 
+
       reservationsRepository.findById.mockResolvedValue(mockReservation);
-      salesRepository.create.mockResolvedValue(mockSale);
+      salesRepository.createSaleTransaction.mockResolvedValue(mockSale);
       // prismaTransaction mock matches
 
       const result = await service.confirmPayment('reservation-1');
@@ -175,15 +156,44 @@ describe('SalesService', () => {
       await expect(service.confirmPayment('reservation-1')).rejects.toThrow(BadRequestException);
     });
 
-    it('should throw BadRequestException when reservation is expired', async () => {
+    // CENÁRIO FALHA: Retornar erro 400 se a reserva expirou
+    it('should throw BadRequestException when reservation is expired (30s timeout exceeded)', async () => {
       const expiredReservation = {
         ...mockReservation,
-        expiresAt: new Date(Date.now() - 1000), // Already expired
+        expiresAt: new Date(Date.now() - 1000), 
       };
 
       reservationsRepository.findById.mockResolvedValue(expiredReservation);
 
       await expect(service.confirmPayment('reservation-1')).rejects.toThrow(BadRequestException);
+    });
+
+    
+    it('should successfully confirm payment within valid time window (30s check)', async () => {
+      const validReservation = {
+        ...mockReservation,
+        expiresAt: new Date(Date.now() + 5000),
+        status: ReservationStatus.PENDING,
+      };
+
+      const mockSale = {
+        id: 'sale-success-1',
+        reservationId: 'reservation-1',
+        userId: 'user-1',
+        totalAmount: new Prisma.Decimal(25.0),
+        confirmedAt: new Date(),
+        createdAt: new Date(),
+        reservation: validReservation,
+        user: validReservation.user,
+      };
+
+      reservationsRepository.findById.mockResolvedValue(validReservation);
+      salesRepository.createSaleTransaction.mockResolvedValue(mockSale);
+
+      const result = await service.confirmPayment('reservation-1');
+
+      expect(salesRepository.createSaleTransaction).toHaveBeenCalled();
+      expect(result.id).toBe('sale-success-1');
     });
   });
 

@@ -9,7 +9,7 @@ import {
   type SeatReleasedEvent,
   type SeatSoldEvent,
 } from './kafka.events';
-import { KAFKA_TOPICS, RESERVATION_EVENTS, SALE_EVENTS, SEAT_EVENTS } from 'src/common/enums/kafka-topics';
+import { KAFKA_TOPICS, RESERVATION_EVENTS, SALE_EVENTS, SEAT_EVENTS } from '../common/enums/kafka-topics';
 
 @Injectable()
 export class KafkaConsumerService implements OnModuleInit {

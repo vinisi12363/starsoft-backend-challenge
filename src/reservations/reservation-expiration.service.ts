@@ -20,6 +20,8 @@ export class ReservationExpirationService {
 
         if (expiredReservations.length === 0) return;
 
+        console.log(`[CRON] Encontradas ${expiredReservations.length} reservas expiradas. Iniciando limpeza...`);
+
         for (const res of expiredReservations) {
             try {
                 const ids = res.reservationSeats.map((rs) => rs.sessionSeatId);
@@ -32,8 +34,10 @@ export class ReservationExpirationService {
                     sessionSeatIds: ids,
                 });
 
+                console.log(`[CRON] Reserva ${res.id} expirada! Assentos liberados: ${ids.length}`);
                 this.logger.log(`Reserva ${res.id} expirada via cron.`);
             } catch (error) {
+                console.log(`[CRON] Falha ao expirar reserva ${res.id}: ${error.message}`);
                 this.logger.error(`Erro ao expirar ${res.id}: ${error.message}`);
             }
         }

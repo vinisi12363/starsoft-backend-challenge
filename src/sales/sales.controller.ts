@@ -39,6 +39,14 @@ export class SalesController {
         return this.salesService.findAll();
     }
 
+    @Get('sales/user/:userId')
+    @ApiOperation({ summary: 'Histórico de compras por usuário' })
+    @ApiParam({ name: 'userId', description: 'ID do usuário (UUID)' })
+    @ApiResponse({ status: 200, description: 'Lista de compras do usuário' })
+    async findByUserId(@Param('userId', ParseUUIDPipe) userId: string) {
+        return this.salesService.findByUserId(userId);
+    }
+
     @Get('sales/:id')
     @ApiOperation({ summary: 'Get sale by ID' })
     @ApiParam({ name: 'id', description: 'Sale ID (UUID)' })

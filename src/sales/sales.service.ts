@@ -1,17 +1,16 @@
 import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
+
 import { KafkaService } from '../kafka/kafka.service';
-import { ReservationStatus, SeatStatus, type Sale, Prisma } from '@prisma/client';
+import { ReservationStatus, type Sale, Prisma } from '@prisma/client';
 import { SalesRepository } from './sales.repository';
 import { ReservationsRepository } from '../reservations/reservations.repository';
-import { KAFKA_TOPICS, SALE_EVENTS, SEAT_EVENTS } from 'src/common/enums/kafka-topics';
+import { KAFKA_TOPICS, SALE_EVENTS, SEAT_EVENTS } from '../common/enums/kafka-topics';
 
 @Injectable()
 export class SalesService {
   private readonly logger = new Logger(SalesService.name);
 
   constructor(
-    private readonly prisma: PrismaService,
     private readonly salesRepository: SalesRepository,
     private readonly reservationsRepository: ReservationsRepository,
     private readonly kafka: KafkaService,
@@ -42,23 +41,16 @@ export class SalesService {
 
     const sessionSeatIds = reservation.reservationSeats.map((rs) => rs.sessionSeatId);
 
-    const sale = await this.prisma.$transaction(async (tx) => {
-      await tx.sessionSeat.updateMany({
-        where: { id: { in: sessionSeatIds } },
-        data: { status: SeatStatus.SOLD },
-      });
+    console.log(`[PAYMENT] Iniciando confirmação da reserva ${reservationId}. Valor: R$ ${totalAmount}`);
 
-      await tx.reservation.update({
-        where: { id: reservationId },
-        data: { status: ReservationStatus.CONFIRMED },
-      });
+    const sale = await this.salesRepository.createSaleTransaction(
+      reservationId,
+      reservation.userId,
+      totalAmount,
+      sessionSeatIds,
+    );
 
-      return this.salesRepository.create({
-        reservationId,
-        userId: reservation.userId,
-        totalAmount,
-      });
-    });
+    console.log(`[PAYMENT] Venda ${sale.id} confirmada com sucesso!`);
 
     await this.emitSaleEvents(sale, sessionSeatIds, reservation.sessionId);
 

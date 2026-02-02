@@ -42,7 +42,7 @@ describe('ReservationsService', () => {
     status: SeatStatus.AVAILABLE,
     createdAt: new Date(),
     updatedAt: new Date(),
-    roomId: 'room-1', // Required by Prisma Seat type if used in certain contexts or joins
+    roomId: 'room-1', 
   };
 
   const mockLock = {
@@ -101,7 +101,7 @@ describe('ReservationsService', () => {
         {
           provide: ConfigService,
           useValue: {
-            get: jest.fn().mockReturnValue(30),
+            get: jest.fn().mockReturnValue(30000),
           },
         },
       ],
@@ -133,7 +133,7 @@ describe('ReservationsService', () => {
         reservationSeats: [
           {
             sessionSeat: {
-              seat: mockSeat, // mockSeat now has roomId
+              seat: mockSeat,
               id: 'session-seat-1',
               sessionId: 'session-1',
               status: SeatStatus.AVAILABLE,
@@ -175,18 +175,7 @@ describe('ReservationsService', () => {
       await expect(service.create(createDto)).rejects.toThrow(ConflictException);
     });
 
-    // Teste removido ou ajustado pois a lógica agora está no repository/service de forma diferente?
-    // O service apenas delega. A validação de user existe se não for checada antes.
-    // O código atual do service.create NÃO CHECA users explicitamente antes do repository,
-    // apenas chama repository.createWithAtomicSeats.
-    // Mas vamos manter se o service faz alguma checagem.
-    // Olhando o código do service:
-    // 1. Idempotency check
-    // 2. Redis locks
-    // 3. Repository createWithAtomicSeats
-
-    // Portanto, o teste 'should throw NotFoundException when user does not exist' depende da implementação do repository
-    // Se o repo lançar erro, o service relança.
+ 
 
     it('should throw ConflictException when seat is not available (repository throws SEATS_NOT_AVAILABLE)', async () => {
       const createDto = {

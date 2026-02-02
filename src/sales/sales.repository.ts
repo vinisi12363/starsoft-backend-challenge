@@ -54,4 +54,34 @@ export class SalesRepository {
   async count(where?: Prisma.SaleWhereInput): Promise<number> {
     return this.prisma.sale.count({ where });
   }
+  async createSaleTransaction(
+    reservationId: string,
+    userId: string,
+    totalAmount: Prisma.Decimal,
+    sessionSeatIds: string[],
+  ) {
+    return this.prisma.$transaction(async (tx) => {
+      console.log(`[ATOMIC SALE DB] Travando assentos como SOLD...`);
+      await tx.sessionSeat.updateMany({
+        where: { id: { in: sessionSeatIds } },
+        data: { status: 'SOLD' },
+      });
+
+      console.log(`[ATOMIC SALE DB] Atualizando status da reserva para CONFIRMED...`);
+      await tx.reservation.update({
+        where: { id: reservationId },
+        data: { status: 'CONFIRMED' },
+      });
+
+      console.log(`[ATOMIC SALE DB] Criando registro de venda...`);
+      return tx.sale.create({
+        data: {
+          reservationId,
+          userId,
+          totalAmount,
+        },
+        include: this.saleInclude,
+      });
+    });
+  }
 }

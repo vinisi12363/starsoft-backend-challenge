@@ -55,6 +55,7 @@ export class KafkaService implements OnModuleInit, OnModuleDestroy {
         ],
       });
 
+      console.log(`[KAFKA] Evento enviado para tópico '${topic}': ${JSON.stringify(message).substring(0, 50)}...`);
       this.logger.debug(`Message published to ${topic}`, { key });
     } catch (error) {
       this.logger.error(`Failed to publish message to ${topic}`, error);
