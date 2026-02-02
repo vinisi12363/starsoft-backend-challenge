@@ -111,6 +111,7 @@ Este modo sobe a aplicação completa utilizando o `docker-compose.yml` padrão.
 2. **Acesse a Aplicação**:
    > API: `http://localhost:4000`
    > Swagger: `http://localhost:4000/api-docs`
+   > Kafka UI: `http://localhost:8080`
 
 ### Opção B: Modo Desenvolvimento (Local)
 
@@ -140,6 +141,7 @@ Neste modo, o banco e serviços rodam no Docker, mas a API roda na sua máquina 
    ```
    > Acesso: `http://localhost:3000`
    > Swagger: `http://localhost:3000/api-docs`
+   > Kafka UI: `http://localhost:8080`
 
 ### Opção C: Modo Cluster (Cluster & Load Balancer)
 
