@@ -23,6 +23,12 @@ services:
     networks:
       - starsoft-network
     command: node dist/src/main
+    healthcheck:
+      test: [ "CMD", "wget", "-q", "-O", "-", "http://localhost:3000/api-docs" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
   migrator:
     build: .
@@ -42,7 +48,8 @@ services:
     ports:
       - "4000:80"
     depends_on:
-      - app
+      app:
+        condition: service_healthy
     networks:
       - starsoft-network
 
@@ -111,6 +118,17 @@ services:
       interval: 10s
       timeout: 10s
       retries: 10
+    networks:
+      - starsoft-network
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    ports:
+      - "8080:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
+      KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
     networks:
       - starsoft-network
 
