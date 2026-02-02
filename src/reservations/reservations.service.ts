@@ -36,7 +36,7 @@ export class ReservationsService {
 
         const locks = await this.redis.acquireMultipleLocks(
             sessionSeatIds.map((id) => `lock:ss:${id}`),
-            this.configService.get<number>('RESERVATION_TTL_SECONDS', 30000),
+            Number(this.configService.get<number>('RESERVATION_TTL_SECONDS', 30)) * 1000,
         );
         if (!locks) throw new ConflictException('Assentos em processo de reserva.');
 
@@ -46,7 +46,7 @@ export class ReservationsService {
                 sessionId,
                 sessionSeatIds,
                 idempotencyKey,
-                expiresAt: new Date(Date.now() + Number(this.configService.get<number>('RESERVATION_TTL_SECONDS', 30000))),
+                expiresAt: new Date(Date.now() + Number(this.configService.get<number>('RESERVATION_TTL_SECONDS', 30)) * 1000),
             });
 
             await this.kafka.emit('reservations-topic', { event: 'CREATED', ...reservation });

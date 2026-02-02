@@ -42,7 +42,7 @@ describe('ReservationsService', () => {
     status: SeatStatus.AVAILABLE,
     createdAt: new Date(),
     updatedAt: new Date(),
-    roomId: 'room-1', 
+    roomId: 'room-1',
   };
 
   const mockLock = {
@@ -101,7 +101,7 @@ describe('ReservationsService', () => {
         {
           provide: ConfigService,
           useValue: {
-            get: jest.fn().mockReturnValue(30000),
+            get: jest.fn().mockReturnValue(30),
           },
         },
       ],
@@ -175,7 +175,7 @@ describe('ReservationsService', () => {
       await expect(service.create(createDto)).rejects.toThrow(ConflictException);
     });
 
- 
+
 
     it('should throw ConflictException when seat is not available (repository throws SEATS_NOT_AVAILABLE)', async () => {
       const createDto = {
