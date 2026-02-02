@@ -2,31 +2,15 @@ import { Injectable, type OnModuleInit, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { KafkaService } from './kafka.service';
 import {
-  KAFKA_TOPICS,
   type ReservationCreatedEvent,
   type ReservationExpiredEvent,
   type ReservationCancelledEvent,
   type PaymentConfirmedEvent,
   type SeatReleasedEvent,
   type SeatSoldEvent,
-  RESERVATION_EVENTS,
-  SALE_EVENTS,
-  SEAT_EVENTS,
 } from './kafka.events';
+import { KAFKA_TOPICS, RESERVATION_EVENTS, SALE_EVENTS, SEAT_EVENTS } from 'src/common/enums/kafka-topics';
 
-/**
- * Kafka Event Consumer Service
- *
- * Consumes events from Kafka topics and processes them accordingly.
- * This demonstrates async event processing capabilities of the system.
- *
- * Events consumed:
- * - reservation.created: Log new reservations
- * - reservation.expired: Handle expired reservation cleanup
- * - payment.confirmed: Process confirmed payments
- * - seat.released: Update analytics on seat releases
- * - seat.sold: Update analytics on seat sales
- */
 @Injectable()
 export class KafkaConsumerService implements OnModuleInit {
   private readonly logger = new Logger(KafkaConsumerService.name);
@@ -36,7 +20,6 @@ export class KafkaConsumerService implements OnModuleInit {
     private readonly kafkaService: KafkaService,
     private readonly configService: ConfigService,
   ) {
-    // Allow disabling consumer in test environment
     this.enabled = this.configService.get<string>('KAFKA_CONSUMER_ENABLED', 'true') === 'true';
   }
 
@@ -51,9 +34,6 @@ export class KafkaConsumerService implements OnModuleInit {
     await this.subscribeToSeatEvents();
   }
 
-  /**
-   * Subscribe to reservation-related events
-   */
   private async subscribeToReservationEvents(): Promise<void> {
     const groupId = 'cinema-reservation-consumer';
 
@@ -78,9 +58,6 @@ export class KafkaConsumerService implements OnModuleInit {
     });
   }
 
-  /**
-   * Subscribe to sale-related events
-   */
   private async subscribeToSaleEvents(): Promise<void> {
     const groupId = 'cinema-sale-consumer';
 
@@ -95,9 +72,6 @@ export class KafkaConsumerService implements OnModuleInit {
     );
   }
 
-  /**
-   * Subscribe to seat-related events
-   */
   private async subscribeToSeatEvents(): Promise<void> {
     const groupId = 'cinema-seat-consumer';
 
@@ -119,10 +93,6 @@ export class KafkaConsumerService implements OnModuleInit {
     );
   }
 
-  // ===========================================
-  // Event Handlers
-  // ===========================================
-
   private async handleReservationCreated(event: ReservationCreatedEvent): Promise<void> {
     this.logger.log(
       `Reservation created: ${event.reservationId} | ` +
@@ -131,11 +101,6 @@ export class KafkaConsumerService implements OnModuleInit {
       `Seats: ${event.seatIds.length} | ` +
       `Expires: ${new Date(event.expiresAt).toISOString()}`,
     );
-
-    // Here you could:
-    // - Send notifications to the user
-    // - Update real-time dashboards
-    // - Trigger analytics tracking
   }
 
   private async handleReservationExpired(event: ReservationExpiredEvent): Promise<void> {
@@ -145,11 +110,6 @@ export class KafkaConsumerService implements OnModuleInit {
       `Session: ${event.sessionId} | ` +
       `Seats released: ${event.seatIds.length}`,
     );
-
-    // Here you could:
-    // - Notify user about expired reservation
-    // - Update availability in real-time
-    // - Track abandonment metrics
   }
 
   private async handlePaymentConfirmed(event: PaymentConfirmedEvent): Promise<void> {
@@ -159,12 +119,6 @@ export class KafkaConsumerService implements OnModuleInit {
       `User: ${event.userId} | ` +
       `Amount: R$${event.totalAmount.toFixed(2)}`,
     );
-
-    // Here you could:
-    // - Send confirmation email
-    // - Generate ticket PDF
-    // - Update sales reports
-    // - Trigger external integrations
   }
 
   private async handleSeatReleased(event: SeatReleasedEvent): Promise<void> {
@@ -173,10 +127,6 @@ export class KafkaConsumerService implements OnModuleInit {
       `Seats: ${event.seatIds.length} | ` +
       `Reason: ${event.reason}`,
     );
-
-    // Here you could:
-    // - Notify waitlisted users
-    // - Update real-time seat map
   }
 
   private async handleSeatSold(event: SeatSoldEvent): Promise<void> {
@@ -185,9 +135,5 @@ export class KafkaConsumerService implements OnModuleInit {
       `Seats: ${event.seatIds.length} | ` +
       `Sale: ${event.saleId}`,
     );
-
-    // Here you could:
-    // - Update occupancy analytics
-    // - Update real-time seat map
   }
 }

@@ -40,9 +40,6 @@ export class KafkaService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  /**
-   * Publica uma mensagem em um tópico Kafka
-   */
   async emit<T>(topic: string, message: T, key?: string): Promise<void> {
     try {
       await this.producer.send({
@@ -65,32 +62,6 @@ export class KafkaService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  /**
-   * Publica múltiplas mensagens em um tópico Kafka
-   */
-  async emitBatch<T>(topic: string, messages: Array<{ value: T; key?: string }>): Promise<void> {
-    try {
-      await this.producer.send({
-        topic,
-        messages: messages.map((msg) => ({
-          key: msg.key ?? undefined,
-          value: JSON.stringify(msg.value),
-          headers: {
-            timestamp: Date.now().toString(),
-          },
-        })),
-      });
-
-      this.logger.debug(`Batch of ${messages.length} messages published to ${topic}`);
-    } catch (error) {
-      this.logger.error(`Failed to publish batch to ${topic}`, error);
-      throw error;
-    }
-  }
-
-  /**
-   * Cria um consumer para um grupo específico
-   */
   async createConsumer(groupId: string): Promise<Consumer> {
     if (this.consumers.has(groupId)) {
       return this.consumers.get(groupId)!;
@@ -104,9 +75,6 @@ export class KafkaService implements OnModuleInit, OnModuleDestroy {
     return consumer;
   }
 
-  /**
-   * Subscreve a um tópico e processa mensagens
-   */
   async subscribe<T>(
     groupId: string,
     topic: string,

@@ -82,43 +82,6 @@ graph TD
         Kafka -->|Consumo| App1 & App2 & App3
     end
 ```
-
-### Fluxo de Reserva (Blindado para alta Concorrência)
-
-```mermaid
-sequenceDiagram
-    participant User
-    participant API
-    participant Redis
-    participant DB as PostgreSQL
-    participant Kafka
-
-    User->>API: POST /reservations (Seats: A1, A2)
-    
-    Note over API, Redis: 1. Tentativa de Lock Distribuído
-    API->>Redis: SETNX lock:seat:A1, lock:seat:A2
-    
-    alt Lock Ocupado (Falha)
-        Redis-->>API: Falha (Já existe)
-        API-->>User: 409 Conflict
-    else Lock Adquirido (Sucesso)
-        Redis-->>API: OK (Locks criados)
-        
-        Note over API, DB: 2. Transação no Banco
-        API->>DB: BEGIN TRANSACTION
-        API->>DB: INSERT Reservation
-        API->>DB: UPDATE SessionSeat (Status=RESERVED)
-        DB-->>API: OK
-        API->>DB: COMMIT
-        
-        Note over API, Kafka: 3. Publicar Evento
-        API->>Kafka: Emit "ReservationCreated"
-        
-        API->>Redis: DEL Locks
-        API-->>User: 201 Created (Reserva Confirmada)
-    end
-```
-
 ---
 
 ## Como Executar

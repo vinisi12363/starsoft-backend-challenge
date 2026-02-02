@@ -24,12 +24,40 @@ async function main() {
     console.log('🧹 Database clean.');
 
     // 2. Criar Usuários
-    const user = await prisma.user.create({
-        data: {
-            email: 'dev@test.com',
-            name: 'Dev Teste Concorrência',
-        },
-    });
+    const users = await Promise.all([
+        prisma.user.create({
+            data: {
+                email: 'maria.silva@email.com',
+                name: 'Maria Silva',
+            },
+        }),
+        prisma.user.create({
+            data: {
+                email: 'joao.santos@email.com',
+                name: 'João Santos',
+            },
+        }),
+        prisma.user.create({
+            data: {
+                email: 'ana.oliveira@email.com',
+                name: 'Ana Oliveira',
+            },
+        }),
+        prisma.user.create({
+            data: {
+                email: 'carlos.souza@email.com',
+                name: 'Carlos Souza',
+            },
+        }),
+        prisma.user.create({
+            data: {
+                email: 'juliana.costa@email.com',
+                name: 'Juliana Costa',
+            },
+        }),
+    ]);
+
+    const user = users[0];
 
     // 3. Criar Sala (O Molde Físico)
     const room = await prisma.room.create({
@@ -87,7 +115,7 @@ async function main() {
     // 7. Simular uma Reserva e Venda (Fluxo Novo)
     // Vamos pegar o assento A1 desta sessão específica
     const targetSessionSeat = await prisma.sessionSeat.findFirst({
-        where: { 
+        where: {
             sessionId: session.id,
             seat: { rowLabel: 'A', seatNumber: 1 }
         },
@@ -113,7 +141,7 @@ async function main() {
         // Marcar o assento da sessão como vendido
         await prisma.sessionSeat.update({
             where: { id: targetSessionSeat.id },
-            data: { 
+            data: {
                 status: SeatStatus.SOLD,
                 version: { increment: 1 } // Simula o update de concorrência
             }

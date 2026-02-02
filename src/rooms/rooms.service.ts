@@ -1,29 +1,24 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
+import { RoomsRepository } from './rooms.repository';
 import type { CreateRoomDto } from './dto/create-room.dto';
 
 @Injectable()
 export class RoomsService {
-  constructor(private readonly prisma: PrismaService) { }
+  constructor(private readonly repository: RoomsRepository) { }
 
   async create(createRoomDto: CreateRoomDto) {
-    return this.prisma.room.create({
-      data: {
-        ...createRoomDto,
-        status: 'ACTIVE', // Default status from Enum
-      },
+    return this.repository.create({
+      ...createRoomDto,
+      status: 'ACTIVE',
     });
   }
 
   async findAll() {
-    return this.prisma.room.findMany();
+    return this.repository.findAll();
   }
 
   async findById(id: string) {
-    const room = await this.prisma.room.findUnique({
-      where: { id },
-      include: { seats: true }, // Include physical seats if useful
-    });
+    const room = await this.repository.findById(id);
     if (!room) {
       throw new NotFoundException('Room not found');
     }

@@ -1,6 +1,3 @@
-// ===========================================
-// Cinema Ticket System - Prisma Schema (Distributed Version)
-// ===========================================
 
 generator client {
   provider = "prisma-client-js"
@@ -10,9 +7,7 @@ datasource db {
   provider = "postgresql"
 }
 
-// ===========================================
-// User - Usuário do sistema
-// ===========================================
+
 model User {
   id        String   @id @default(uuid())
   email     String   @unique
@@ -26,9 +21,7 @@ model User {
   @@map("users")
 }
 
-// ===========================================
-// Room - Estrutura física da sala
-// ===========================================
+
 enum RoomStatus {
   ACTIVE
   MAINTENANCE
@@ -49,9 +42,7 @@ model Room {
   @@map("rooms")
 }
 
-// ===========================================
-// Seat - Coordenada física do assento na sala
-// ===========================================
+
 model Seat {
   id         String   @id @default(uuid())
   roomId     String   @map("room_id")
@@ -67,9 +58,6 @@ model Seat {
   @@map("seats")
 }
 
-// ===========================================
-// Session - O evento (Filme + Sala + Horário)
-// ===========================================
 model Session {
   id            String   @id @default(uuid())
   roomId        String   @map("room_id")
@@ -88,9 +76,7 @@ model Session {
   @@map("sessions")
 }
 
-// ===========================================
-// SessionSeat - O estado do assento PARA UMA SESSÃO
-// ===========================================
+
 enum SeatStatus {
   AVAILABLE
   RESERVED
@@ -103,16 +89,16 @@ model SessionSeat {
   seatId    String     @map("seat_id")
   status    SeatStatus @default(AVAILABLE)
   
-  // O version é essencial para Optimistic Locking em alta concorrência
+
   version   Int        @default(0)
 
   session   Session    @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   seat      Seat       @relation(fields: [seatId], references: [id])
   
-  // Uma reserva pode conter múltiplos SessionSeats
+
   reservationSeats ReservationSeat[]
 
-  @@unique([sessionId, seatId]) // Garante que um assento não seja duplicado na mesma sessão
+  @@unique([sessionId, seatId])
   @@map("session_seats")
 }
 

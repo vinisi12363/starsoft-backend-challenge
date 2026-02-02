@@ -2,21 +2,13 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service';
 import { KafkaService } from '../kafka/kafka.service';
-import { ReservationStatus, SeatStatus } from '@prisma/client';
-import {
-    KAFKA_TOPICS,
-    RESERVATION_EVENTS,
-    SEAT_EVENTS,
-    ReservationExpiredEvent,
-    SeatReleasedEvent,
-} from '../kafka/kafka.events';
 import { ReservationsRepository } from './reservations.repository';
+import { KAFKA_TOPICS, RESERVATION_EVENTS } from 'src/common/enums/kafka-topics';
 @Injectable()
 export class ReservationExpirationService {
     private readonly logger = new Logger(ReservationExpirationService.name);
 
     constructor(
-        private readonly prisma: PrismaService,
         private readonly repository: ReservationsRepository,
         private readonly kafka: KafkaService,
     ) { }
@@ -32,10 +24,8 @@ export class ReservationExpirationService {
             try {
                 const ids = res.reservationSeats.map((rs) => rs.sessionSeatId);
 
-                // Delega a persistência para o Repository
                 await this.repository.expire(res.id, ids);
 
-                // Publica o evento (Requisito 3)
                 await this.kafka.emit(KAFKA_TOPICS.RESERVATIONS, {
                     eventType: RESERVATION_EVENTS.EXPIRED,
                     reservationId: res.id,

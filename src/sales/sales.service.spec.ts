@@ -27,10 +27,9 @@ describe('SalesService', () => {
 
   const mockSeat = {
     id: 'seat-1',
-    sessionId: 'session-1',
+    roomId: 'room-1',
     rowLabel: 'A',
     seatNumber: 1,
-    status: SeatStatus.RESERVED,
     createdAt: new Date(),
     updatedAt: new Date(),
   };
@@ -39,21 +38,28 @@ describe('SalesService', () => {
     id: 'reservation-1',
     userId: 'user-1',
     sessionId: 'session-1',
-    expiresAt: new Date(Date.now() + 30000), // Not expired
+    expiresAt: new Date(Date.now() + 30000),
     status: ReservationStatus.PENDING,
     createdAt: new Date(),
     updatedAt: new Date(),
+    idempotencyKey: 'key-1',
     reservationSeats: [
       {
+        id: 'reservation-seat-1',
         sessionSeat: {
-          seat: mockSeat,
+          seat: {
+            id: 'seat-1',
+            roomId: 'room-1',
+            rowLabel: 'A',
+            seatNumber: 1,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          },
           id: 'session-seat-1',
           sessionId: 'session-1',
           status: SeatStatus.RESERVED,
           seatId: 'seat-1',
           version: 0,
-          createdAt: new Date(),
-          updatedAt: new Date(),
         },
         reservationId: 'reservation-1',
         sessionSeatId: 'session-seat-1',
@@ -83,6 +89,7 @@ describe('SalesService', () => {
         findUnique: jest.fn(),
         findMany: jest.fn(),
       },
+      //@ts-ignore
       $transaction: jest.fn((cb) => cb(prismaServiceMock)), // Mock transaction execution
       sessionSeat: {
         updateMany: jest.fn(),
@@ -131,7 +138,13 @@ describe('SalesService', () => {
         confirmedAt: new Date(),
         createdAt: new Date(),
         reservation: mockReservation,
-        user: { id: 'user-1', name: 'Test', email: 'test@test.com' },
+        user: {
+          id: 'user-1',
+          name: 'Test',
+          email: 'test@test.com',
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
       };
 
       reservationsRepository.findById.mockResolvedValue(mockReservation);

@@ -6,7 +6,6 @@ import type { Prisma } from '@prisma/client';
 export class SalesRepository {
   constructor(private readonly prisma: PrismaService) { }
 
-  // Centralizamos o include para não repetir esse "Inception" em todos os métodos
   private readonly saleInclude = {
     reservation: {
       include: {
@@ -38,16 +37,9 @@ export class SalesRepository {
   }
 
   async findById(id: string) {
-    return this.prisma.reservation.findUnique({
+    return this.prisma.sale.findUnique({
       where: { id },
-      include: {
-        reservationSeats: {
-          include: {
-            sessionSeat: { include: { seat: true } },
-          },
-        },
-        session: true,
-      },
+      include: this.saleInclude,
     });
   }
 

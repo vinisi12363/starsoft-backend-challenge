@@ -6,6 +6,18 @@ import { Prisma, SeatStatus } from '@prisma/client';
 export class SessionsRepository {
     constructor(private readonly prisma: PrismaService) { }
 
+    private readonly deepInclude: Prisma.SessionInclude = {
+        sessionSeats: {
+            include: { seat: true },
+            orderBy: {
+                seat: {
+                    rowLabel: 'asc' as const,
+                },
+            },
+        },
+        room: true,
+    };
+
     async findAll() {
         return this.prisma.session.findMany({
             include: {
@@ -40,32 +52,38 @@ export class SessionsRepository {
         });
     }
 
-    private readonly deepInclude: Prisma.SessionInclude = {
-        sessionSeats: {
-            include: { seat: true },
-            orderBy: {
-                seat: {
-                    rowLabel: 'asc' as const, // O 'as const' resolve o erro TS2322
-                },
-            },
-        },
-        room: true,
-    };
-
-    async create(data: Prisma.SessionCreateInput) {
-        return this.prisma.session.create({
-            data,
-            include: { room: true },
+    async findRoomWithSeats(roomId: string) {
+        return this.prisma.room.findUnique({
+            where: { id: roomId },
+            include: { seats: true },
         });
     }
 
-    async findSessionSeats(sessionId: string, status?: SeatStatus) {
-        return this.prisma.sessionSeat.findMany({
-            where: {
-                sessionId,
-                ...(status && { status }),
-            },
-            include: { seat: true },
+    async createWithSeats(
+        sessionData: {
+            movieTitle: string;
+            startShowTime: Date;
+            endShowTime: Date;
+            ticketPrice: Prisma.Decimal;
+            roomId: string;
+        },
+        seats: Array<{ id: string }>,
+    ) {
+        return this.prisma.$transaction(async (tx) => {
+            const session = await tx.session.create({
+                data: sessionData,
+            });
+
+            await tx.sessionSeat.createMany({
+                data: seats.map((seat) => ({
+                    sessionId: session.id,
+                    seatId: seat.id,
+                    status: SeatStatus.AVAILABLE,
+                    version: 0,
+                })),
+            });
+
+            return session;
         });
     }
 }

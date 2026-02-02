@@ -70,6 +70,17 @@ export class ReservationsController {
         return this.reservationsService.create(createReservationDto, idempotencyKey);
     }
 
+    @Get()
+    @ApiOperation({
+        summary: 'Listar todas as reservas',
+        description: 'Retorna todas as reservas cadastradas.',
+    })
+    @ApiResponse({ status: 200, description: 'Lista de reservas encontrada.' })
+    async findAll() {
+        return this.reservationsService.findAll();
+    }
+
+
     @Get(':id')
     @ApiOperation({
         summary: 'Consultar detalhes de uma reserva',
