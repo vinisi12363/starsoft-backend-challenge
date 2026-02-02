@@ -67,11 +67,7 @@ export class RedisService implements OnModuleDestroy {
     return null;
   }
 
-  /**
-   * Libera um lock distribuído
-   * @param key - Chave do lock
-   * @param value - Valor do lock (para garantir que apenas quem criou pode liberar)
-   */
+ 
   async releaseLock(key: string, value: string): Promise<boolean> {
     const result = await this.client.eval(this.lockScript, 1, key, value);
     const released = result === 1;
@@ -85,12 +81,7 @@ export class RedisService implements OnModuleDestroy {
     return released;
   }
 
-  /**
-   * Adquire múltiplos locks em ordem (para evitar deadlock)
-   * @param keys - Array de chaves para adquirir locks
-   * @param ttlMs - Tempo de vida dos locks em milissegundos
-   * @returns Array de locks adquiridos ou null se falhou
-   */
+
   async acquireMultipleLocks(keys: string[], ttlMs: number): Promise<Lock[] | null> {
     // Ordenar keys para evitar deadlock
     const sortedKeys = [...keys].sort();
@@ -100,7 +91,6 @@ export class RedisService implements OnModuleDestroy {
       const lock = await this.acquireLock(key, ttlMs);
 
       if (!lock) {
-        // Falhou em adquirir um lock, libera todos os anteriores
         this.logger.warn(
           `Failed to acquire lock for ${key}, releasing ${acquiredLocks.length} previous locks`,
         );
@@ -118,35 +108,25 @@ export class RedisService implements OnModuleDestroy {
     return acquiredLocks;
   }
 
-  /**
-   * Libera múltiplos locks
-   * @param locks - Array de locks para liberar
-   */
   async releaseMultipleLocks(locks: Lock[]): Promise<void> {
     for (const lock of locks) {
       await lock.release();
     }
   }
 
-  /**
-   * Verifica se um lock existe
-   */
+
   async isLocked(key: string): Promise<boolean> {
     const result = await this.client.exists(key);
     return result === 1;
   }
 
-  /**
-   * Cache get
-   */
+  
   async get<T>(key: string): Promise<T | null> {
     const value = await this.client.get(key);
     return value ? JSON.parse(value) : null;
   }
 
-  /**
-   * Cache set com TTL
-   */
+
   async set(key: string, value: unknown, ttlSeconds?: number): Promise<void> {
     const serialized = JSON.stringify(value);
     if (ttlSeconds) {
@@ -156,9 +136,7 @@ export class RedisService implements OnModuleDestroy {
     }
   }
 
-  /**
-   * Delete key
-   */
+
   async del(key: string): Promise<void> {
     await this.client.del(key);
   }

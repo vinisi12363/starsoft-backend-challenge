@@ -24,7 +24,7 @@ import { UseGuards } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { DuplicateRequestGuard } from '../common/guards/duplicate-request.guard';
 
-@ApiTags('Reservations')
+@ApiTags('reservations')
 @Controller('reservations')
 export class ReservationsController {
     constructor(private readonly reservationsService: ReservationsService) { }

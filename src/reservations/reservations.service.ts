@@ -36,13 +36,12 @@ export class ReservationsService {
 
         const locks = await this.redis.acquireMultipleLocks(
             sessionSeatIds.map((id) => `lock:ss:${id}`),
-            10000,
+            this.configService.get<number>('RESERVATION_TTL_SECONDS', 30000),
         );
-        console.log("locks", locks);
         if (!locks) throw new ConflictException('Assentos em processo de reserva.');
 
         try {
-            const reservation = await this.repository.createWithAtomicSeats({
+            const reservation = await this.repository.createWithAtomicSeats({   
                 userId,
                 sessionId,
                 sessionSeatIds,

@@ -158,7 +158,7 @@ describe('ReservationsService', () => {
 
       expect(result).toBeDefined();
       expect(result.id).toBe('reservation-1');
-      expect(redisService.acquireMultipleLocks).toHaveBeenCalledWith(['lock:ss:seat-1'], 10000);
+      expect(redisService.acquireMultipleLocks).toHaveBeenCalledWith(['lock:ss:seat-1'], 30000);
       expect(redisService.releaseMultipleLocks).toHaveBeenCalledWith([mockLock]);
       expect(kafkaService.emit).toHaveBeenCalled();
     });
@@ -265,7 +265,7 @@ describe('ReservationsService', () => {
       // Verify locks were requested (RedisService handles sorting internally)
       expect(redisService.acquireMultipleLocks).toHaveBeenCalledWith(
         ['lock:ss:seat-3', 'lock:ss:seat-1', 'lock:ss:seat-2'],
-        10000,
+        30000,
       );
     });
   });

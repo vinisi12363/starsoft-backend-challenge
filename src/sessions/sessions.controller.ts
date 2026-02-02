@@ -14,7 +14,7 @@ import { SessionsService } from './sessions.service';
 import { CreateSessionDto } from './dto/create-session.dto';
 import type { SeatStatus } from '@prisma/client';
 
-@ApiTags('Sessions')
+@ApiTags('sessions')
 @Controller('sessions')
 export class SessionsController {
   constructor(private readonly sessionsService: SessionsService) { }
